@@ -14,6 +14,8 @@ const defaultConfig = {
     "Show the latest product highlights.",
     "How can I contact the sales team?"
   ],
+  messageEndpoint: "/api/chat",
+  useMockResponses: true,
   zIndex: 9999
 };
 
@@ -52,9 +54,11 @@ function bootstrapChatbot(config) {
   const closeButton = overlay.querySelector(".nsing-chatbot-close");
   const suggestions = overlay.querySelectorAll("[data-nsing-chatbot-suggestion]");
   const form = overlay.querySelector(".nsing-chatbot-form");
+  const sendButton = overlay.querySelector(".nsing-chatbot-send");
 
   let previousFocus = null;
   let previousOverflowValue = "";
+  let isSending = false;
 
   const openModal = () => {
     previousFocus = document.activeElement;
@@ -104,22 +108,45 @@ function bootstrapChatbot(config) {
       textarea.focus();
     });
   });
+  textarea.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      if (typeof form.requestSubmit === "function") {
+        form.requestSubmit();
+      } else {
+        form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+      }
+    }
+  });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const value = textarea.value.trim();
-    if (!value) {
+    if (!value || isSending) {
       return;
+    }
+    isSending = true;
+    if (sendButton) {
+      sendButton.disabled = true;
     }
     appendMessage(value, "user");
     textarea.value = "";
     textarea.focus();
-    setTimeout(() => {
+    try {
+      const reply = await requestAssistantResponse(config, value);
+      appendMessage(reply, "bot");
+    } catch (error) {
+      console.warn("Chatbot placeholder request failed", error);
       appendMessage(
-        "Thanks for your question! Our team will follow up shortly.",
+        "Sorry, we couldn't reach the assistant right now. Please try again soon.",
         "bot"
       );
-    }, 500);
+    } finally {
+      isSending = false;
+      if (sendButton) {
+        sendButton.disabled = false;
+      }
+    }
   });
 
   function appendMessage(text, author) {
@@ -217,6 +244,56 @@ function buildOverlay(config) {
     suggestionsRoot.appendChild(button);
   });
   return overlay;
+}
+
+async function requestAssistantResponse(config, prompt) {
+  const endpoint = (config.messageEndpoint || "").trim();
+  const shouldCallEndpoint = endpoint && !config.useMockResponses;
+
+  if (shouldCallEndpoint) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ message: prompt })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data && typeof data.reply === "string" && data.reply.trim()) {
+          return data.reply;
+        }
+      }
+    } catch (error) {
+      console.warn("Placeholder endpoint not available yet.", error);
+    }
+  }
+
+  return getMockAssistantReply(prompt);
+}
+
+function getMockAssistantReply(prompt) {
+  const normalized = prompt.toLowerCase();
+  if (normalized.includes("mcu")) {
+    return "Our automotive-grade MCU families cover Cortex-M0, M4, and M7 cores so you can scale performance and memory. Tell us your voltage and peripheral needs and we’ll short-list exact parts.";
+  }
+  if (normalized.includes("contact") || normalized.includes("sales")) {
+    return "You can reach our sales team via the Contact Us page or by emailing sales@nsing.com.sg. Share your project timeline and we’ll connect you with the right regional rep.";
+  }
+  if (normalized.includes("sample")) {
+    return "Samples are available through the Sample & Buy portal. Sign in with your company email, pick the device, and we’ll ship within 3–5 business days.";
+  }
+  if (normalized.includes("roadmap") || normalized.includes("upcoming")) {
+    return "Our 2025 roadmap focuses on secure connectivity, BLE + MCU combos, and extended automotive temperature ranges. Stay tuned for quarterly launch notes.";
+  }
+  const fallbacks = [
+    "Thanks for the message! I’m using a demo brain right now, but a live assistant will soon answer this automatically.",
+    "Great question. While the real API is being wired up, here’s a placeholder reply letting you know we received: “{text}”.",
+    "I’ve noted your question. Once the production endpoint is ready, this space will show detailed answers tailored to your prompt."
+  ];
+  const selected = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+  return selected.replace("{text}", prompt);
 }
 
 function injectStyles(zIndex) {
