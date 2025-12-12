@@ -14,8 +14,6 @@
       "Compare NSING’s Cortex-M0 and Cortex-M4 offerings.",
       "Which NSING solutions suit secure IoT gateways?"
     ],
-    systemPrompt:
-      "You are the NSING Assistant. Respond in Markdown with concise paragraphs, bullet lists, and tables when helpful. Summarize references at the end when available.",
     zIndex: 9999
   };
 
@@ -35,9 +33,7 @@
       global.NsingChatbotService &&
       typeof global.NsingChatbotService.createChatbotService === "function"
     ) {
-      ragflowService = global.NsingChatbotService.createChatbotService({
-        systemPrompt: config.systemPrompt
-      });
+      ragflowService = global.NsingChatbotService.createChatbotService();
     }
     bootstrapChatbot(config);
   }
@@ -301,29 +297,41 @@
     label.className = "label";
     label.textContent = "References";
     wrapper.appendChild(label);
-    const list = document.createElement("ul");
+
+    const list = document.createElement("div");
+    list.className = "nsing-chatbot-reference-list";
+
     references.forEach((reference) => {
-      const li = document.createElement("li");
-      const title = reference?.title || reference?.name || "External resource";
-      const url = reference?.url || reference?.link || "";
-      if (url) {
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.target = "_blank";
-        anchor.rel = "noopener noreferrer";
-        anchor.textContent = title;
-        li.appendChild(anchor);
+      const targetElement = document.createElement(reference?.url ? "a" : "div");
+      targetElement.className = "nsing-chatbot-reference";
+      if (reference?.url) {
+        targetElement.href = reference.url;
+        targetElement.target = "_blank";
+        targetElement.rel = "noopener noreferrer";
       } else {
-        li.textContent = title;
+        targetElement.style.cursor = "default";
       }
-      if (reference?.snippet) {
-        const snippet = document.createElement("div");
-        snippet.textContent = reference.snippet;
-        snippet.className = "snippet";
-        li.appendChild(snippet);
-      }
-      list.appendChild(li);
+      const documentName = reference?.name || reference?.title || "Reference document";
+      targetElement.title = documentName;
+      targetElement.setAttribute("aria-label", documentName);
+
+      const icon = document.createElement("span");
+      icon.className = "nsing-chatbot-reference-icon";
+
+      const srText = document.createElement("span");
+      srText.className = "nsing-chatbot-visually-hidden";
+      srText.textContent = documentName;
+
+      const tooltip = document.createElement("span");
+      tooltip.className = "nsing-chatbot-reference-tooltip";
+      tooltip.textContent = documentName;
+
+      targetElement.appendChild(icon);
+      targetElement.appendChild(srText);
+      targetElement.appendChild(tooltip);
+      list.appendChild(targetElement);
     });
+
     wrapper.appendChild(list);
     return wrapper;
   }
@@ -612,16 +620,64 @@
         font-weight: 600;
         margin-bottom: 4px;
       }
-      .nsing-chatbot-references ul {
-        padding-left: 18px;
+      .nsing-chatbot-reference-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
         margin: 0;
+        padding: 0;
       }
-      .nsing-chatbot-references li {
-        margin-bottom: 4px;
+      .nsing-chatbot-reference {
+        width: 36px;
+        height: 36px;
+        border-radius: 12px;
+        border: 1px solid rgba(15,24,45,0.15);
+        background: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        color: inherit;
+        position: relative;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        cursor: pointer;
       }
-      .nsing-chatbot-references .snippet {
-        color: #777;
-        font-size: 12px;
+      .nsing-chatbot-reference:hover,
+      .nsing-chatbot-reference:focus-visible {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 14px rgba(15,24,45,0.15);
+        outline: none;
+      }
+      .nsing-chatbot-reference-tooltip {
+        position: absolute;
+        bottom: calc(100% + 6px);
+        left: 50%;
+        transform: translate(-50%, 4px);
+        background: rgba(15,24,45,0.9);
+        color: #fff;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease, transform 0.15s ease;
+        z-index: 2;
+      }
+      .nsing-chatbot-reference:hover .nsing-chatbot-reference-tooltip,
+      .nsing-chatbot-reference:focus-visible .nsing-chatbot-reference-tooltip {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+      .nsing-chatbot-reference-icon {
+        font-size: 16px;
+        line-height: 1;
+        width: 20px;
+        height: 20px;
+        background-image: url('images/paper-clip.png');
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
       }
       .nsing-chatbot-markdown p {
         margin: 0 0 8px;

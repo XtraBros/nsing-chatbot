@@ -2,8 +2,6 @@
   const defaultServiceOptions = {
     sessionEndpoint: "/api/chatbot/session",
     messageEndpoint: "/api/chatbot/send",
-    systemPrompt:
-      "You are the NSING Assistant. Respond in Markdown with concise paragraphs, bullet lists, tables when helpful, and cite reference names when available.",
     model: "default"
   };
 
@@ -78,7 +76,6 @@
         body: JSON.stringify({
           session_id: sessionId,
           message: prompt,
-          system_prompt: options.systemPrompt,
           model: options.model
         })
       });
@@ -115,11 +112,81 @@
     if (typeof content !== "string" || !content.trim()) {
       content = "I’m sorry, I couldn’t find any information for that request.";
     }
-    const references = data?.references || [];
+    const references = normalizeReferences(data, first);
     return {
       content,
-      references: Array.isArray(references) ? references : []
+      references
     };
+  }
+
+  function normalizeReferences(apiResponse, choice) {
+    if (Array.isArray(apiResponse?.references) && apiResponse.references.length) {
+      return dedupeReferences(
+        apiResponse.references
+          .map((reference) => sanitizeReference(reference))
+          .filter(Boolean)
+      );
+    }
+    const fallbackReference = choice?.message?.reference;
+    if (fallbackReference && typeof fallbackReference === "object") {
+      return dedupeReferences(buildReferencesFromMessage(fallbackReference));
+    }
+    return [];
+  }
+
+  function dedupeReferences(items) {
+    if (!Array.isArray(items)) {
+      return [];
+    }
+    const seen = new Set();
+    return items.filter((item) => {
+      const key = item?.id || item?.name;
+      if (!key || seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function sanitizeReference(reference) {
+    if (!reference) {
+      return null;
+    }
+    const name =
+      reference.name ||
+      reference.title ||
+      reference.doc_name ||
+      reference.docName ||
+      "Reference document";
+    return {
+      id: reference.id || reference.doc_id || reference.docId || name,
+      name,
+      url: reference.url || reference.href || "",
+      thumbnail: reference.thumbnail || reference.image || ""
+    };
+  }
+
+  function buildReferencesFromMessage(reference) {
+    const docAggs = reference.doc_aggs;
+    if (!docAggs || typeof docAggs !== "object") {
+      return [];
+    }
+    const seen = new Set();
+    const items = [];
+    Object.values(docAggs).forEach((doc) => {
+      const id = doc?.doc_id || doc?.docId || doc?.id;
+      if (!id || seen.has(id)) {
+        return;
+      }
+      seen.add(id);
+      items.push({
+        id,
+        name: doc?.doc_name || doc?.docName || "Reference document",
+        url: ""
+      });
+    });
+    return items;
   }
 
   function getStoredSession(key) {
