@@ -1,8 +1,18 @@
 (function (global) {
   const defaultConfig = {
+    assistantName: "NSING Assistant",
+    assistantSubtitle: "Answers about products, specs, and support",
     buttonLabel: "Ask NSING",
     buttonAriaLabel: "Open NSING virtual assistant",
     buttonIcon: "images/choml.png",
+    welcomeTitle: "Hi there 👋",
+    welcomeMessage:
+      "This virtual assistant is here to answer quick questions about NSING products, applications, or sales support. Use the suggestions or type your own prompt. A live RAGFlow session on the right shows full answers.",
+    placeholder: "Ask me anything about NSING solutions...",
+    suggestions: [
+      "Can you introduce yourself?",
+      "Show me NSING N32 specs.",
+    ],
     ragflowEmbedUrl:
       "http://xtraragflow.ddns.net/next-chats/share?shared_id=75067fe0d5d411f081be6ac959cbbf0e&from=chat&auth=E1OTJjNWE2ZDYxOTExZjBhOGRjNmFjOT&visible_avatar=1",
     zIndex: 9999
@@ -15,23 +25,31 @@
       return;
     }
     hasInitialized = true;
-
     const config = { ...defaultConfig, ...options };
-    bootstrap(config);
+    bootstrapChatbot(config);
   }
 
-  function bootstrap(config) {
+  function bootstrapChatbot(config) {
     injectStyles(config.zIndex);
     const overlay = buildOverlay(config);
     const toggleButton = buildToggleButton(config);
+
     document.body.appendChild(overlay);
     document.body.appendChild(toggleButton);
 
-    const iframe = overlay.querySelector(".nsing-ragflow-frame");
+    const textarea = overlay.querySelector(".nsing-chatbot-input");
     const closeButton = overlay.querySelector(".nsing-chatbot-close");
+    const suggestions = overlay.querySelectorAll("[data-nsing-chatbot-suggestion]");
+    const form = overlay.querySelector(".nsing-chatbot-form");
+    const sendButton = overlay.querySelector(".nsing-chatbot-send");
+    const backendFrame = overlay.querySelector(".nsing-chatbot-backendFrame");
+    const backendOrigin = getOrigin(config.ragflowEmbedUrl);
+    let backendWindow = null;
+    let fallbackTimer = null;
 
     let previousFocus = null;
     let previousOverflowValue = "";
+    let isSending = false;
 
     const openModal = () => {
       previousFocus = document.activeElement;
@@ -41,8 +59,9 @@
       toggleButton.style.display = "none";
       document.body.style.overflow = "hidden";
       document.addEventListener("keydown", onKeydown);
-      if (iframe && !iframe.src) {
-        iframe.src = config.ragflowEmbedUrl;
+      textarea.focus();
+      if (backendFrame && !backendFrame.src) {
+        backendFrame.src = config.ragflowEmbedUrl;
       }
     };
 
@@ -76,6 +95,103 @@
         closeModal();
       }
     });
+
+    if (backendFrame) {
+      backendFrame.addEventListener("load", () => {
+        backendWindow = backendFrame.contentWindow;
+      });
+    }
+
+    const handleBackendMessage = (event) => {
+      if (!backendWindow) {
+        return;
+      }
+      if (event.source !== backendWindow) {
+        return;
+      }
+      if (backendOrigin && backendOrigin !== "*" && event.origin !== backendOrigin) {
+        return;
+      }
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+      const data = event.data;
+      let responseText = "";
+      if (typeof data === "string") {
+        responseText = data;
+      } else if (data && typeof data === "object") {
+        responseText = data.text || data.message || "";
+      }
+      if (responseText) {
+        appendMessage(overlay, responseText, "bot");
+      }
+      isSending = false;
+      if (sendButton) {
+        sendButton.disabled = false;
+      }
+    };
+    window.addEventListener("message", handleBackendMessage);
+
+    suggestions.forEach((button) => {
+      button.addEventListener("click", () => {
+        textarea.value = button.dataset.nsingChatbotSuggestion || "";
+        textarea.focus();
+      });
+    });
+
+    textarea.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        if (typeof form.requestSubmit === "function") {
+          form.requestSubmit();
+        } else {
+          form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+        }
+      }
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const value = textarea.value.trim();
+      if (!value || isSending) {
+        return;
+      }
+      isSending = true;
+      if (sendButton) {
+        sendButton.disabled = true;
+      }
+      appendMessage(overlay, value, "user");
+      textarea.value = "";
+      textarea.focus();
+      forwardToBackend(value);
+    });
+
+    function forwardToBackend(message) {
+      if (backendWindow) {
+        backendWindow.postMessage(
+          {
+            type: "nsing-chatbot-user-message",
+            text: message
+          },
+          backendOrigin || "*"
+        );
+      }
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+      }
+      fallbackTimer = setTimeout(() => {
+        appendMessage(
+          overlay,
+          "The assistant is thinking... please check back in a moment.",
+          "bot"
+        );
+        isSending = false;
+        if (sendButton) {
+          sendButton.disabled = false;
+        }
+      }, 4000);
+    }
   }
 
   function buildToggleButton(config) {
@@ -107,22 +223,66 @@
     modal.setAttribute("role", "dialog");
     modal.setAttribute("tabindex", "-1");
     modal.setAttribute("aria-modal", "true");
-    modal.setAttribute("aria-label", "NSING Assistant");
+    modal.setAttribute("aria-label", config.assistantName);
 
     modal.innerHTML = `
-      <button class="nsing-chatbot-close" type="button" aria-label="Close chatbot">
-        <span aria-hidden="true">&times;</span>
-      </button>
+      <div class="nsing-chatbot-body">
+        <div class="nsing-chatbot-column">
+          <div class="nsing-chatbot-intro">
+            <div class="intro-header">
+              <img src="${config.buttonIcon}" alt="Assistant" />
+              <div>
+                <h4>${config.welcomeTitle}</h4>
+                <p>${config.welcomeMessage}</p>
+              </div>
+            </div>
+          </div>
+        <div class="nsing-chatbot-suggestions" data-nsing-chatbot-suggestions>
+          ${config.suggestions
+            .map(
+              (text) => `<button type="button" data-nsing-chatbot-suggestion="${text}">${text}</button>`
+            )
+            .join("")}
+          </div>
+          <div class="nsing-chatbot-messages" aria-live="polite"></div>
+          <form class="nsing-chatbot-form">
+            <label class="nsing-chatbot-visually-hidden" for="nsing-chatbot-input">Ask NSING</label>
+            <textarea
+              id="nsing-chatbot-input"
+              class="nsing-chatbot-input"
+              placeholder="${config.placeholder}"
+              rows="2"
+            ></textarea>
+            <button type="submit" class="nsing-chatbot-send">Send</button>
+          </form>
+        </div>
+      </div>
       <iframe
-        class="nsing-ragflow-frame"
+        class="nsing-chatbot-backendFrame"
         loading="lazy"
         frameborder="0"
         allow="clipboard-write"
+        aria-hidden="true"
       ></iframe>
+      <button class="nsing-chatbot-close" type="button" aria-label="Close chatbot">
+        <span aria-hidden="true">&times;</span>
+      </button>
     `;
 
     overlay.appendChild(modal);
     return overlay;
+  }
+
+  function appendMessage(overlay, text, author) {
+    const list = overlay.querySelector(".nsing-chatbot-messages");
+    const row = document.createElement("div");
+    row.className = `nsing-chatbot-message nsing-chatbot-message-${author}`;
+    const bubble = document.createElement("div");
+    bubble.className = "nsing-chatbot-bubble";
+    bubble.textContent = text;
+    row.appendChild(bubble);
+    list.appendChild(row);
+    list.scrollTop = list.scrollHeight;
   }
 
   function injectStyles(zIndex) {
@@ -167,10 +327,7 @@
         justify-content: center;
         font-size: 18px;
         color: #fff;
-        background: rgba(255, 255, 255, 0.18);
-      }
-      .nsing-chatbot-button-label {
-        line-height: 1;
+        background: rgba(255,255,255,0.18);
       }
       .nsing-chatbot-overlay {
         position: fixed;
@@ -190,55 +347,150 @@
         pointer-events: auto;
       }
       .nsing-chatbot-modal {
-        width: min(920px, 95vw);
-        height: min(850px, 95vh);
+        width: min(1100px, 96vw);
+        max-height: 95vh;
+        height: min(860px, 95vh);
         background: #fff;
         border-radius: 24px;
         display: flex;
         flex-direction: column;
-        box-shadow: 0 35px 65px rgba(0, 0, 0, 0.35);
+        box-shadow: 0 35px 65px rgba(0,0,0,0.35);
         padding: 24px;
-        min-height: 0;
         position: relative;
       }
       .nsing-chatbot-close {
         position: absolute;
-        top: 12px;
-        right: 12px;
+        top: 16px;
+        right: 16px;
         border: none;
-        background: rgba(0, 0, 0, 0.55);
+        background: rgba(0,0,0,0.55);
         color: #fff;
-        cursor: pointer;
         width: 34px;
         height: 34px;
         border-radius: 50%;
-        font-size: 18px;
+        cursor: pointer;
+        font-size: 20px;
         line-height: 34px;
         text-align: center;
       }
-      .nsing-ragflow-frame {
+      .nsing-chatbot-body {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
         flex: 1;
-        width: 100%;
-        border: none;
-        border-radius: 18px;
         min-height: 0;
       }
-      @media (max-width: 768px) {
-        .nsing-chatbot-button {
-          right: 16px;
-          left: 16px;
-          width: calc(100% - 32px);
-          justify-content: center;
-        }
-        .nsing-chatbot-overlay {
-          padding: 12px;
-        }
-        .nsing-chatbot-modal {
-          width: 100%;
-          height: calc(100% - 24px);
-          border-radius: 16px;
-          padding: 16px;
-        }
+      .nsing-chatbot-column {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        min-height: 0;
+        flex: 1;
+      }
+      .nsing-chatbot-intro h4 {
+        margin: 0;
+        font-size: 18px;
+      }
+      .nsing-chatbot-intro p {
+        margin: 4px 0 0;
+        font-size: 14px;
+        color: #555;
+      }
+      .nsing-chatbot-intro .intro-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .nsing-chatbot-intro .intro-header img {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        object-fit: cover;
+        flex-shrink: 0;
+      }
+      .nsing-chatbot-suggestions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .nsing-chatbot-suggestions button {
+        border: 1px solid rgba(13, 28, 66, 0.15);
+        background: #f6f7fb;
+        border-radius: 20px;
+        padding: 6px 12px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .nsing-chatbot-messages {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        background: #f9f9fd;
+        border-radius: 16px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .nsing-chatbot-message {
+        display: flex;
+      }
+      .nsing-chatbot-message-user {
+        justify-content: flex-end;
+      }
+      .nsing-chatbot-bubble {
+        max-width: 80%;
+        padding: 10px 14px;
+        border-radius: 14px;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+      .nsing-chatbot-message-user .nsing-chatbot-bubble {
+        background: #0062ff;
+        color: #fff;
+        border-bottom-right-radius: 4px;
+      }
+      .nsing-chatbot-message-bot .nsing-chatbot-bubble {
+        background: #fff;
+        border: 1px solid rgba(0,0,0,0.08);
+      }
+      .nsing-chatbot-form {
+        display: flex;
+        gap: 12px;
+        margin-top: auto;
+      }
+      .nsing-chatbot-input {
+        flex: 1;
+        border-radius: 14px;
+        border: 1px solid rgba(13,28,66,0.15);
+        padding: 12px 16px;
+        resize: none;
+        min-height: 60px;
+        font-size: 15px;
+        font-family: inherit;
+        color: #000;
+      }
+      .nsing-chatbot-send {
+        border: none;
+        border-radius: 14px;
+        padding: 0 28px;
+        background: #102044;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .nsing-chatbot-visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0,0,0,0);
+        border: 0;
+      }
+      .nsing-chatbot-backendFrame {
+        display: none;
       }
     `;
     document.head.appendChild(style);
@@ -248,4 +500,15 @@
 
   const config = global.nsingChatbotConfig || {};
   initChatbot(config);
+
+  function getOrigin(url) {
+    if (!url) {
+      return "*";
+    }
+    try {
+      return new URL(url).origin;
+    } catch (error) {
+      return "*";
+    }
+  }
 })(window);
