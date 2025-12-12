@@ -84,5 +84,5 @@ def send_message():
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 9101))
+    port = int(os.environ.get("PORT", 9001))
     app.run(host="0.0.0.0", port=port)
