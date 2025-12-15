@@ -12,7 +12,7 @@
     suggestions: [
       "Highlight the N32H automotive MCU lineup.",
       "Compare NSING’s Cortex-M0 and Cortex-M4 offerings.",
-      "Which NSING solutions suit secure IoT gateways?"
+      "Which NSING solutions include EtherCAT support?"
     ],
     systemPrompt:
       "You are the NSING Assistant. Respond in Markdown with concise paragraphs, bullet lists, and tables when helpful. Summarize references at the end when available.",
@@ -329,51 +329,35 @@
   }
 
   function convertMarkdownToHtml(markdown = "") {
-    const codeBlocks = [];
-    let text = markdown.replace(/```([\s\S]*?)```/g, (_, code) => {
-      const placeholder = `@@CODE_BLOCK_${codeBlocks.length}@@`;
-      codeBlocks.push(escapeHtml(code));
-      return placeholder;
-    });
-
-    const lines = text.split(/\r?\n/);
-    let html = "";
-    let inList = false;
-
-    lines.forEach((line) => {
-      if (/^\s*[-*+]\s+/.test(line)) {
-        if (!inList) {
-          html += "<ul>";
-          inList = true;
-        }
-        html += `<li>${formatInline(line.replace(/^\s*[-*+]\s+/, ""))}</li>`;
-      } else {
-        if (inList) {
-          html += "</ul>";
-          inList = false;
-        }
-        if (!line.trim()) {
-          html += "<br>";
-        } else if (/^#{1,6}\s+/.test(line)) {
-          const level = line.match(/^#{1,6}/)[0].length;
-          const content = line.replace(/^#{1,6}\s+/, "");
-          html += `<h${level}>${formatInline(content)}</h${level}>`;
-        } else {
-          html += `<p>${formatInline(line)}</p>`;
-        }
-      }
-    });
-    if (inList) {
-      html += "</ul>";
+    const m = window.marked;
+    if (!m) {
+      return escapeHtml(markdown || "");
     }
 
-    codeBlocks.forEach((code, index) => {
-      html = html.replace(
-        `@@CODE_BLOCK_${index}@@`,
-        `<pre><code>${code}</code></pre>`
-      );
-    });
-    return html;
+    const parser =
+      typeof m === "function"
+        ? m
+        : typeof m.parse === "function"
+          ? m.parse.bind(m)
+          : null;
+    if (!parser) {
+      return escapeHtml(markdown || "");
+    }
+
+    if (typeof m.setOptions === "function") {
+      m.setOptions({
+        breaks: true,
+        gfm: true,
+        headerIds: false,
+        mangle: false
+      });
+    }
+
+    const raw = parser(markdown || "");
+    const div = document.createElement("div");
+    div.innerHTML = raw;
+    div.querySelectorAll("script").forEach((el) => el.remove());
+    return div.innerHTML;
   }
 
   function formatInline(text) {
@@ -399,6 +383,10 @@
     const style = document.createElement("style");
     style.id = "nsing-chatbot-styles";
     style.textContent = `
+      .nsing-chatbot-markdown table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+      .nsing-chatbot-markdown th,
+      .nsing-chatbot-markdown td { border: 1px solid #e0e0e0; padding: 6px 8px; text-align: left; }
+      .nsing-chatbot-markdown thead { background: #f6f8fa; font-weight: 600; }
       .nsing-chatbot-button {
         position: fixed;
         bottom: 24px;
