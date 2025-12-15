@@ -10,9 +10,9 @@
       "This virtual assistant is here to answer quick questions about NSING products, applications, or sales support. Use the suggestions or type your own prompt.",
     placeholder: "Ask me anything about NSING solutions...",
     suggestions: [
+      "Compare NSING’s Cortex-M0, Cortex-M4, and Cortex-M7 offerings in tabular format.",
       "Highlight the N32H automotive MCU lineup.",
-      "Compare NSING’s Cortex-M0 and Cortex-M4 offerings.",
-      "Which NSING solutions include EtherCAT support?"
+      "Which NSING MCUs include EtherCAT support?"
     ],
     systemPrompt:
       "You are the NSING Assistant. Respond in Markdown with concise paragraphs, bullet lists, and tables when helpful. Summarize references at the end when available.",
