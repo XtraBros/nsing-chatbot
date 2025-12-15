@@ -78,7 +78,7 @@ def send_message():
                 ],
                 "stream": False,
             },
-            timeout=60,
+            timeout=120,
         )
         if response.status_code == 404:
             app.logger.warning("AGENT ID not found: %s", AGENT_ID)

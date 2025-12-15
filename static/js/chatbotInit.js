@@ -391,7 +391,16 @@
     const style = document.createElement("style");
     style.id = "nsing-chatbot-styles";
     style.textContent = `
-      .nsing-chatbot-markdown table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+      .nsing-chatbot-markdown {
+        max-width: 100%;
+        overflow-x: auto;
+      }
+      .nsing-chatbot-markdown table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 8px 0;
+        table-layout: auto;
+      }
       .nsing-chatbot-markdown th,
       .nsing-chatbot-markdown td { border: 1px solid #e0e0e0; padding: 6px 8px; text-align: left; }
       .nsing-chatbot-markdown thead { background: #f6f8fa; font-weight: 600; }
@@ -544,16 +553,34 @@
       }
       .nsing-chatbot-message {
         display: flex;
+        min-width: 0;
       }
       .nsing-chatbot-message-user {
         justify-content: flex-end;
       }
       .nsing-chatbot-bubble {
-        max-width: 80%;
+        max-width: 100%;
+        min-width: 0;
         border-radius: 14px;
         padding: 10px 14px;
         font-size: 14px;
         line-height: 1.45;
+        overflow-x: auto;
+      }
+      .nsing-chatbot-bubble table {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
+        overflow-x: auto;
+      }
+      .nsing-chatbot-bubble th,
+      .nsing-chatbot-bubble td {
+        padding: 6px 8px;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        word-break: break-word;
+        white-space: normal;
       }
       .nsing-chatbot-message-user .nsing-chatbot-bubble {
         background: #0062ff;
