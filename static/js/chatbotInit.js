@@ -391,7 +391,16 @@
     const style = document.createElement("style");
     style.id = "nsing-chatbot-styles";
     style.textContent = `
-      .nsing-chatbot-markdown table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+      .nsing-chatbot-markdown {
+        max-width: 100%;
+        overflow-x: auto;
+      }
+      .nsing-chatbot-markdown table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 8px 0;
+        table-layout: auto;
+      }
       .nsing-chatbot-markdown th,
       .nsing-chatbot-markdown td { border: 1px solid #e0e0e0; padding: 6px 8px; text-align: left; }
       .nsing-chatbot-markdown thead { background: #f6f8fa; font-weight: 600; }
@@ -549,11 +558,12 @@
         justify-content: flex-end;
       }
       .nsing-chatbot-bubble {
-        max-width: 80%;
+        max-width: 100%;
         border-radius: 14px;
         padding: 10px 14px;
         font-size: 14px;
         line-height: 1.45;
+        overflow-x: auto;
       }
       .nsing-chatbot-message-user .nsing-chatbot-bubble {
         background: #0062ff;
