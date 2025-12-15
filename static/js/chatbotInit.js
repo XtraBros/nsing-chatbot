@@ -567,6 +567,21 @@
         line-height: 1.45;
         overflow-x: auto;
       }
+      .nsing-chatbot-bubble table {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
+        overflow-x: auto;
+      }
+      .nsing-chatbot-bubble th,
+      .nsing-chatbot-bubble td {
+        padding: 6px 8px;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        word-break: break-word;
+        white-space: normal;
+      }
       .nsing-chatbot-message-user .nsing-chatbot-bubble {
         background: #0062ff;
         color: #fff;
