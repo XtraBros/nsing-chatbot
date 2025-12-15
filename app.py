@@ -2,6 +2,9 @@ import os
 
 from flask import Flask, jsonify, request, send_from_directory
 import requests
+import logging
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from utils.helpers import extract_references
 
@@ -11,6 +14,21 @@ API_KEY = os.environ.get("RAGFLOW_API_KEY", "")
 AGENT_COMPLETION_PATH = "/api/v1/agents_openai/{agent_id}/chat/completions"
 
 app = Flask(__name__, static_folder="static", static_url_path="")
+
+# After app creation
+log_dir = Path("logs")
+log_dir.mkdir(exist_ok=True)
+file_handler = RotatingFileHandler(
+    log_dir / "chatbot.log",
+    maxBytes=1_000_000,  # ~1MB per file
+    backupCount=5
+)
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(name)s - %(message)s"
+))
+app.logger.addHandler(file_handler)
+app.logger.setLevel(logging.INFO)
 
 @app.get("/")
 def index():
@@ -69,7 +87,10 @@ def send_message():
         response.raise_for_status()
         data = response.json()
         data["references"] = extract_references(data, API_BASE)
-        # print(f"===> RAGFlow API Response: {data}")
+        app.logger.info("User message: %s", user_message)
+        app.logger.info("RAGFlow API response: %s", data)
+        message = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        app.logger.info("Response message: %s\n\n", message)
         return jsonify(data)
     except requests.HTTPError as http_error:
         app.logger.error("Failed to send message: %s", http_error)
