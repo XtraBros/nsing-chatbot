@@ -553,12 +553,14 @@
       }
       .nsing-chatbot-message {
         display: flex;
+        min-width: 0;
       }
       .nsing-chatbot-message-user {
         justify-content: flex-end;
       }
       .nsing-chatbot-bubble {
         max-width: 100%;
+        min-width: 0;
         border-radius: 14px;
         padding: 10px 14px;
         font-size: 14px;
