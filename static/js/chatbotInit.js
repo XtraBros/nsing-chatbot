@@ -297,7 +297,7 @@
     wrapper.className = "nsing-chatbot-chunk-references";
     const label = document.createElement("div");
     label.className = "label";
-    label.textContent = "Source Chunks";
+    label.textContent = "Sources";
     wrapper.appendChild(label);
 
     const list = document.createElement("div");
@@ -386,7 +386,7 @@
     wrapper.className = "nsing-chatbot-references";
     const label = document.createElement("div");
     label.className = "label";
-    label.textContent = "References";
+    label.textContent = "Files";
     wrapper.appendChild(label);
 
     const list = document.createElement("div");
