@@ -113,9 +113,11 @@
       content = "I’m sorry, I couldn’t find any information for that request.";
     }
     const references = normalizeReferences(data, first);
+    const chunks = data?.chunks || {};
     return {
-      content,
-      references
+        content,
+        references,
+        chunks
     };
   }
 

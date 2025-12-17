@@ -86,7 +86,7 @@ def send_message():
 
         response.raise_for_status()
         data = response.json()
-        data["references"] = extract_references(data, API_BASE)
+        data["references"], data["chunks"] = extract_references(data, API_BASE)
         app.logger.info("User message: %s", user_message)
         app.logger.info("RAGFlow API response: %s", data)
         message = data.get("choices", [{}])[0].get("message", {}).get("content", "")

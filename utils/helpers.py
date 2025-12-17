@@ -40,6 +40,16 @@ def extract_references(api_response, api_base):
                 if doc_name and not entry.get("name"):
                     entry["name"] = doc_name
 
+        chunks_data = {}
+        if isinstance(chunks, dict):
+            for chunk_id, chunk in chunks.items():
+                chunks_data[chunk_id] = {
+                    "id": chunk_id,
+                    "content": chunk.get("content") or chunk.get("text") or chunk.get("chunk_content", ""),
+                    "document_id": chunk.get("document_id"),
+                    "document_name": chunk.get("document_name")
+                }
+
         if isinstance(doc_aggs, dict):
             for doc in doc_aggs.values():
                 doc_id = doc.get("doc_id") or doc.get("docId")
@@ -57,7 +67,7 @@ def extract_references(api_response, api_base):
                     }
                 )
 
-    return normalized
+    return normalized, chunks_data
 
 
 def build_document_url(base_url, doc_id, document_name=None):

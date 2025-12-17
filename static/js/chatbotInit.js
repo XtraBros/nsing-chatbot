@@ -156,8 +156,8 @@
 
       ragflowService
         .sendMessage(value)
-        .then(({ content, references }) => {
-          populateBotMessage(pending, content, references);
+        .then(({ content, references, chunks }) => {
+          populateBotMessage(pending, content, references, chunks);
         })
         .catch((error) => {
           console.warn("Assistant request failed", error);
@@ -269,10 +269,79 @@
     return bubble;
   }
 
-  function populateBotMessage(bubble, content, references = []) {
+  function extractChunkReferences(text, chunks = {}) {
+    const pattern = /\[ID:(\d+)\]/g;
+    const found = [];
+    const seen = new Set();
+    let match;
+
+    while ((match = pattern.exec(text)) !== null) {
+      const chunkId = match[1];
+      if (!seen.has(chunkId)) {
+        seen.add(chunkId);
+        const chunk = chunks[chunkId];
+        if (chunk) {
+          found.push({
+            id: chunkId,
+            content: chunk.content || chunk.text || 'No content available'
+          });
+        }
+      }
+    }
+
+    return found;
+  }
+
+  function renderChunkReferences(chunkRefs) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "nsing-chatbot-chunk-references";
+    const label = document.createElement("div");
+    label.className = "label";
+    label.textContent = "Source Chunks";
+    wrapper.appendChild(label);
+
+    const list = document.createElement("div");
+    list.className = "nsing-chatbot-chunk-reference-list";
+
+    chunkRefs.forEach((chunkRef) => {
+      const container = document.createElement("div");
+      container.className = "nsing-chatbot-chunk-reference";
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "nsing-chatbot-chunk-reference-btn";
+      button.textContent = `ID:${chunkRef.id}`;
+      button.setAttribute("aria-label", `View chunk ${chunkRef.id}`);
+
+      const popup = document.createElement("span");
+      popup.className = "nsing-chatbot-chunk-reference-popup";
+      popup.setAttribute("role", "tooltip");
+
+      const popupContent = document.createElement("span");
+      popupContent.className = "nsing-chatbot-chunk-reference-popup-content";
+      popupContent.textContent = chunkRef.content;
+
+      popup.appendChild(popupContent);
+      container.appendChild(button);
+      container.appendChild(popup);
+      list.appendChild(container);
+    });
+
+    wrapper.appendChild(list);
+    return wrapper;
+  }
+
+  function populateBotMessage(bubble, content, references = [], chunks = []) {
     const fragment = document.createDocumentFragment();
+
     const markdown = renderMarkdown(content);
     fragment.appendChild(markdown);
+
+    // Extract and render chunk references
+    const chunkRefs = extractChunkReferences(content, chunks);
+    if (chunkRefs.length > 0) {
+      fragment.appendChild(renderChunkReferences(chunkRefs));
+    }
 
     if (Array.isArray(references) && references.length) {
       fragment.appendChild(renderReferences(references));
@@ -281,6 +350,28 @@
     bubble.innerHTML = "";
     bubble.appendChild(fragment);
     bubble.parentElement?.classList.remove("pending");
+
+    // Position tooltips after rendering
+    positionChunkTooltips(bubble);
+  }
+
+  function positionChunkTooltips(container) {
+    const chunkRefs = container.querySelectorAll('.nsing-chatbot-chunk-reference');
+    chunkRefs.forEach(ref => {
+      const btn = ref.querySelector('.nsing-chatbot-chunk-reference-btn');
+      const popup = ref.querySelector('.nsing-chatbot-chunk-reference-popup');
+
+      if (!btn || !popup) return;
+
+      const updatePosition = () => {
+        const rect = btn.getBoundingClientRect();
+        popup.style.left = `${rect.left + rect.width / 2}px`;
+        popup.style.top = `${rect.top}px`;
+      };
+
+      btn.addEventListener('mouseenter', updatePosition);
+      btn.addEventListener('focus', updatePosition);
+    });
   }
 
   function renderMarkdown(text = "") {
@@ -391,7 +482,7 @@
     const style = document.createElement("style");
     style.id = "nsing-chatbot-styles";
     style.textContent = `
-      .nsing-chatbot-markdown {
+          .nsing-chatbot-markdown {
         max-width: 100%;
         overflow-x: auto;
       }
@@ -550,6 +641,7 @@
         flex-direction: column;
         gap: 12px;
         overflow-y: auto;
+        overflow-x: visible;
       }
       .nsing-chatbot-message {
         display: flex;
@@ -566,6 +658,7 @@
         font-size: 14px;
         line-height: 1.45;
         overflow-x: auto;
+        overflow-y: visible;
       }
       .nsing-chatbot-bubble table {
         display: block;
@@ -621,6 +714,75 @@
         font-weight: 600;
         cursor: pointer;
         min-height: 70px;
+      }
+      .nsing-chatbot-chunk-references {
+        margin-top: 10px;
+        border-top: 1px solid rgba(0,0,0,0.08);
+        padding-top: 8px;
+        font-size: 12px;
+        color: #555;
+      }
+      .nsing-chatbot-chunk-references .label {
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+      .nsing-chatbot-chunk-reference-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0;
+        padding: 0;
+      }
+      .nsing-chatbot-chunk-reference {
+        position: relative;
+        display: inline-block;
+      }
+      .nsing-chatbot-chunk-reference-btn {
+        border: 1px solid rgba(68, 68, 68, 0.3);
+        background: rgba(200, 200, 200, 0.1);
+        color: rgba(0,0,0,0.7);
+        border-radius: 6px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .nsing-chatbot-chunk-reference-btn:hover,
+      .nsing-chatbot-chunk-reference-btn:focus-visible {
+        background: rgba(216, 216, 216, 0.2);
+        border-color: rgba(70, 70, 70, 0.5);
+        outline: none;
+      }
+      .nsing-chatbot-chunk-reference-popup {
+        position: fixed;
+        background: rgba(15, 24, 45, 0.95);
+        color: #fff;
+        padding: 12px;
+        border-radius: 8px;
+        min-width: calc(min(900px, 95vw) - 100px);
+        max-width: calc(min(900px, 95vw) - 100px);
+        width: auto;
+        font-size: 13px;
+        line-height: 1.5;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+        z-index: 10000;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        transform: translate(-50%, calc(-100% - 8px));
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+      .nsing-chatbot-chunk-reference:hover .nsing-chatbot-chunk-reference-popup,
+      .nsing-chatbot-chunk-reference-btn:focus-visible + .nsing-chatbot-chunk-reference-popup {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .nsing-chatbot-chunk-reference-popup-content {
+        display: block;
       }
       .nsing-chatbot-references {
         margin-top: 10px;
@@ -682,7 +844,7 @@
       .nsing-chatbot-reference:hover .nsing-chatbot-reference-tooltip,
       .nsing-chatbot-reference:focus-visible .nsing-chatbot-reference-tooltip {
         opacity: 1;
-        transform: translate(-50%, 0);
+        transform: translate(-10%, 0);
       }
       .nsing-chatbot-reference-icon {
         font-size: 16px;
