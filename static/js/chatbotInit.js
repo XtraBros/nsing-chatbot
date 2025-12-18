@@ -275,6 +275,8 @@
     const seen = new Set();
     let match;
 
+    // Only treat chunks whose IDs the model explicitly cites in the answer
+    // as "used" sources.
     while ((match = pattern.exec(text)) !== null) {
       const chunkId = match[1];
       if (!seen.has(chunkId)) {
@@ -283,7 +285,13 @@
         if (chunk) {
           found.push({
             id: chunkId,
-            content: chunk.content || chunk.text || 'No content available'
+            content:
+              chunk.content ||
+              chunk.text ||
+              chunk.chunk_content ||
+              "No content available",
+            document_id: chunk.document_id || chunk.documentId,
+            document_name: chunk.document_name || chunk.documentName
           });
         }
       }
@@ -343,8 +351,20 @@
       fragment.appendChild(renderChunkReferences(chunkRefs));
     }
 
-    if (Array.isArray(references) && references.length) {
-      fragment.appendChild(renderReferences(references));
+    // Derive the "Files" list from the documents that own the
+    // chunks the model actually cited.
+    let fileReferences = [];
+    if (Array.isArray(references) && references.length && chunkRefs.length) {
+      const usedDocIds = new Set(
+        chunkRefs
+          .map((ref) => ref.document_id)
+          .filter(Boolean)
+      );
+      fileReferences = references.filter((ref) => usedDocIds.has(ref.id));
+    }
+
+    if (fileReferences.length) {
+      fragment.appendChild(renderReferences(fileReferences));
     }
 
     bubble.innerHTML = "";
