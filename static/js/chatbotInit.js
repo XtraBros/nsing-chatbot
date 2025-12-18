@@ -740,9 +740,9 @@
         display: inline-block;
       }
       .nsing-chatbot-chunk-reference-btn {
-        border: 1px solid rgba(68, 68, 68, 0.3);
-        background: rgba(200, 200, 200, 0.1);
-        color: rgba(0,0,0,0.7);
+        border: 1px solid rgba(0, 98, 255, 0.4);
+        background: rgba(0, 98, 255, 0.1);
+        color: #0062ff;
         border-radius: 6px;
         padding: 4px 10px;
         font-size: 12px;
@@ -752,8 +752,8 @@
       }
       .nsing-chatbot-chunk-reference-btn:hover,
       .nsing-chatbot-chunk-reference-btn:focus-visible {
-        background: rgba(216, 216, 216, 0.2);
-        border-color: rgba(70, 70, 70, 0.5);
+        background: rgba(0, 98, 255, 0.2);
+        border-color: rgba(0, 98, 255, 0.6);
         outline: none;
       }
       .nsing-chatbot-chunk-reference-popup {
@@ -808,8 +808,8 @@
         width: 36px;
         height: 36px;
         border-radius: 12px;
-        border: 1px solid rgba(15,24,45,0.15);
-        background: #fff;
+        border: 1px solid rgba(0, 98, 255, 0.3);
+        background: rgba(0, 98, 255, 0.1);
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -822,7 +822,8 @@
       .nsing-chatbot-reference:hover,
       .nsing-chatbot-reference:focus-visible {
         transform: translateY(-1px);
-        box-shadow: 0 6px 14px rgba(15,24,45,0.15);
+        box-shadow: 0 6px 14px rgba(0, 98, 255, 0.25);
+        background: rgba(0, 98, 255, 0.15);
         outline: none;
       }
       .nsing-chatbot-reference-tooltip {
@@ -855,6 +856,7 @@
         background-size: contain;
         background-repeat: no-repeat;
         background-position: center;
+        filter: brightness(0) saturate(100%) invert(27%) sepia(100%) saturate(10000%) hue-rotate(210deg);
       }
       .nsing-chatbot-markdown p {
         margin: 0 0 8px;
