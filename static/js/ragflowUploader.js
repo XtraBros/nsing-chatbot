@@ -282,14 +282,35 @@
         }
         const json = await res.json().catch(() => ({}));
         const docs = Array.isArray(json?.data?.docs) ? json.data.docs : [];
-        renderDocuments(listContainer, docs);
+        renderDocuments(listContainer, docs, config, statusList);
       } catch (err) {
         console.warn("Failed to load documents", err);
         listContainer.innerHTML = `<div class="nsing-uploader-empty">Unable to load documents.</div>`;
       }
     }
 
-    function renderDocuments(container, docs) {
+    async function deleteDocument(id, config) {
+      if (!id) throw new Error("No document ID provided for deletion.");
+      if (!config.apiBase || !config.datasetId || !config.apiKey) {
+        throw new Error("Missing API base/dataset/API key for deletion.");
+      }
+      const endpoint = `${config.apiBase}/api/v1/datasets/${config.datasetId}/documents`;
+      const res = await fetch(endpoint, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${config.apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ ids: [id] })
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Delete failed (HTTP ${res.status}).`);
+      }
+      return res.json().catch(() => ({}));
+    }
+
+    function renderDocuments(container, docs, config, statusList) {
       if (!docs.length) {
         container.innerHTML = `<div class="nsing-uploader-empty">No documents yet.</div>`;
         return;
@@ -302,15 +323,40 @@
           const { colorClass, label } = statusFromRun(doc);
           const row = document.createElement("div");
           row.className = "nsing-uploader-row";
+
+          const name = doc.name || doc.location || "Untitled";
+          const sizeText = doc.size ? `${formatBytes(doc.size)} · ` : "";
+
           row.innerHTML = `
             <span class="nsing-uploader-dot ${colorClass}" title="${label}"></span>
             <div class="nsing-uploader-row-main">
-              <div class="nsing-uploader-name">${doc.name || doc.location || "Untitled"}</div>
+              <div class="nsing-uploader-name">${name}</div>
               <div class="nsing-uploader-meta">
-                ${doc.size ? `${formatBytes(doc.size)} · ` : ""}${label}
+                ${sizeText}${label}
               </div>
             </div>
+            <button type="button" class="nsing-uploader-delete" aria-label="Delete ${name}">Delete</button>
           `;
+
+          const deleteBtn = row.querySelector(".nsing-uploader-delete");
+          deleteBtn.addEventListener("click", async () => {
+            deleteBtn.disabled = true;
+            renderStatus(statusList, `Deleting ${name}…`, "pending");
+            try {
+              await deleteDocument(doc.id, config);
+              renderStatus(statusList, `${name} deleted.`, "success");
+              refreshDocuments(config, container, statusList);
+            } catch (err) {
+              console.warn("Delete failed", err);
+              renderStatus(
+                statusList,
+                err?.message || "Delete failed. Please try again.",
+                "error"
+              );
+              deleteBtn.disabled = false;
+            }
+          });
+
           container.appendChild(row);
         });
     }
@@ -340,158 +386,170 @@
       const style = document.createElement("style");
       style.id = "nsing-uploader-styles";
       style.textContent = `
-      .nsing-uploader-button {
-        position: fixed;
-        right: 24px;
-        bottom: 24px;
-        z-index: ${config.zIndex};
-        background: linear-gradient(120deg, #0f182d, #0062ff);
-        color: #fff;
-        border: none;
-        border-radius: 999px;
-        padding: 12px 18px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 15px;
-        font-weight: 600;
-        box-shadow: 0 12px 25px rgba(16, 32, 68, 0.35);
-        cursor: pointer;
-      }
-      .nsing-uploader-button-icon {
-        width: 32px;
-        height: 32px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        background: rgba(255,255,255,0.14);
-        overflow: hidden;
-      }
-      .nsing-uploader-button-icon img { width: 100%; height: 100%; object-fit: cover; }
-      .nsing-uploader-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(7, 16, 36, 0.55);
-        z-index: ${config.zIndex};
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 24px;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.2s ease;
-      }
-      .nsing-uploader-overlay.is-visible { opacity: 1; pointer-events: auto; }
+        .nsing-uploader-button {
+          position: fixed;
+          right: 24px;
+          bottom: 24px;
+          z-index: ${config.zIndex};
+          background: linear-gradient(120deg, #0f182d, #0062ff);
+          color: #fff;
+          border: none;
+          border-radius: 999px;
+          padding: 12px 18px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 15px;
+          font-weight: 600;
+          box-shadow: 0 12px 25px rgba(16, 32, 68, 0.35);
+          cursor: pointer;
+        }
+        .nsing-uploader-button-icon {
+          width: 32px;
+          height: 32px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.14);
+          overflow: hidden;
+        }
+        .nsing-uploader-button-icon img { width: 100%; height: 100%; object-fit: cover; }
+        .nsing-uploader-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(7, 16, 36, 0.55);
+          z-index: ${config.zIndex};
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.2s ease;
+        }
+        .nsing-uploader-overlay.is-visible { opacity: 1; pointer-events: auto; }
 
-      .nsing-uploader-modal {
-        width: min(560px, 95vw);
-        background: #fff;
-        border-radius: 18px;
-        padding: 20px;
-        box-shadow: 0 28px 60px rgba(0,0,0,0.35);
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        position: relative;
-      }
-      .nsing-uploader-header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
-      .nsing-uploader-header h3 { margin: 0 0 4px; font-size: 20px; }
-      .nsing-uploader-header p { margin: 0; color: #475067; font-size: 14px; }
-      .nsing-uploader-close {
-        border: none;
-        background: rgba(0,0,0,0.1);
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        cursor: pointer;
-        font-size: 18px;
-        line-height: 32px;
-        text-align: center;
-      }
+        .nsing-uploader-modal {
+          width: min(560px, 95vw);
+          background: #fff;
+          border-radius: 18px;
+          padding: 20px;
+          box-shadow: 0 28px 60px rgba(0,0,0,0.35);
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          position: relative;
+        }
+        .nsing-uploader-header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+        .nsing-uploader-header h3 { margin: 0 0 4px; font-size: 20px; }
+        .nsing-uploader-header p { margin: 0; color: #475067; font-size: 14px; }
+        .nsing-uploader-close {
+          border: none;
+          background: rgba(0,0,0,0.1);
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          cursor: pointer;
+          font-size: 18px;
+          line-height: 32px;
+          text-align: center;
+        }
 
-      .nsing-uploader-form { display: flex; flex-direction: column; gap: 8px; }
-      .nsing-uploader-field { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: #0f182d; }
-      .nsing-uploader-inline-row { display: flex; gap: 10px; align-items: center; }
-      .nsing-uploader-field input[type="file"] {
-        flex: 1;
-        border: 1px solid rgba(0,0,0,0.14);
-        border-radius: 10px;
-        padding: 8px 10px;
-        font-size: 14px;
-        font-family: inherit;
-      }
-      .nsing-uploader-submit {
-        border: none;
-        border-radius: 10px;
-        padding: 10px 16px;
-        background: #0f182d;
-        color: #fff;
-        font-weight: 600;
-        cursor: pointer;
-        white-space: nowrap;
-      }
-      .nsing-uploader-status { min-height: 20px; font-size: 13px; }
-      .nsing-uploader-status-item { padding: 8px 10px; border-radius: 10px; }
-      .nsing-uploader-status-item.pending { background: #fff7e6; color: #8c6d1f; }
-      .nsing-uploader-status-item.success { background: #e8fff1; color: #1b7a3f; }
-      .nsing-uploader-status-item.error { background: #fff0f0; color: #a82121; }
+        .nsing-uploader-form { display: flex; flex-direction: column; gap: 8px; }
+        .nsing-uploader-field { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: #0f182d; }
+        .nsing-uploader-inline-row { display: flex; gap: 10px; align-items: center; }
+        .nsing-uploader-field input[type="file"] {
+          flex: 1;
+          border: 1px solid rgba(0,0,0,0.14);
+          border-radius: 10px;
+          padding: 8px 10px;
+          font-size: 14px;
+          font-family: inherit;
+        }
+        .nsing-uploader-submit {
+          border: none;
+          border-radius: 10px;
+          padding: 10px 16px;
+          background: #0f182d;
+          color: #fff;
+          font-weight: 600;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+        .nsing-uploader-status { min-height: 20px; font-size: 13px; }
+        .nsing-uploader-status-item { padding: 8px 10px; border-radius: 10px; }
+        .nsing-uploader-status-item.pending { background: #fff7e6; color: #8c6d1f; }
+        .nsing-uploader-status-item.success { background: #e8fff1; color: #1b7a3f; }
+        .nsing-uploader-status-item.error { background: #fff0f0; color: #a82121; }
 
-      .nsing-uploader-list {
-        border-top: 1px solid rgba(0,0,0,0.06);
-        padding-top: 6px;
-        margin-top: 2px;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-      }
-      .nsing-uploader-list-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-      .nsing-uploader-list-header h4 { margin: 0; font-size: 15px; color: #0f182d; }
-      .nsing-uploader-refresh {
-        border: 1px solid rgba(0,0,0,0.1);
-        background: #fff;
-        border-radius: 8px;
-        padding: 6px 10px;
-        font-size: 12px;
-        cursor: pointer;
-      }
-      .nsing-uploader-list-body {
-        max-height: 300px;
-        overflow: auto;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-      .nsing-uploader-row {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        padding: 8px;
-        border: 1px solid rgba(0,0,0,0.06);
-        border-radius: 10px;
-        background: #f9fafc;
-      }
-      .nsing-uploader-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-      .nsing-uploader-name {
-        font-size: 14px;
-        font-weight: 600;
-        color: #0f182d;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .nsing-uploader-meta { font-size: 12px; color: #5a6478; }
-      .nsing-uploader-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.08); }
-      .nsing-uploader-dot.red { background: #e54848; }
-      .nsing-uploader-dot.orange { background: #f5a524; }
-      .nsing-uploader-dot.green { background: #2eb67d; }
-      .nsing-uploader-empty { font-size: 13px; color: #5a6478; }
+        .nsing-uploader-list {
+          border-top: 1px solid rgba(0,0,0,0.06);
+          padding-top: 6px;
+          margin-top: 2px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .nsing-uploader-list-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .nsing-uploader-list-header h4 { margin: 0; font-size: 15px; color: #0f182d; }
+        .nsing-uploader-refresh {
+          border: 1px solid rgba(0,0,0,0.1);
+          background: #fff;
+          border-radius: 8px;
+          padding: 6px 10px;
+          font-size: 12px;
+          cursor: pointer;
+        }
+        .nsing-uploader-list-body {
+          max-height: 300px;
+          overflow: auto;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .nsing-uploader-row {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+          padding: 8px;
+          border: 1px solid rgba(0,0,0,0.06);
+          border-radius: 10px;
+          background: #f9fafc;
+        }
+        .nsing-uploader-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .nsing-uploader-name {
+          font-size: 14px;
+          font-weight: 600;
+          color: #0f182d;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .nsing-uploader-meta { font-size: 12px; color: #5a6478; }
+        .nsing-uploader-delete {
+          margin-left: auto;
+          border: 1px solid rgba(0,0,0,0.12);
+          background: #fff;
+          color: #d12b2b;
+          border-radius: 8px;
+          padding: 6px 10px;
+          font-size: 12px;
+          cursor: pointer;
+          flex-shrink: 0;
+        }
+        .nsing-uploader-delete:hover { background: #ffecec; }
+        .nsing-uploader-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.08); }
+        .nsing-uploader-dot.red { background: #e54848; }
+        .nsing-uploader-dot.orange { background: #f5a524; }
+        .nsing-uploader-dot.green { background: #2eb67d; }
+        .nsing-uploader-empty { font-size: 13px; color: #5a6478; }
 
-      @media (max-width: 768px) {
-        .nsing-uploader-button { left: 16px; right: 16px; width: calc(100% - 32px); justify-content: center; }
-        .nsing-uploader-modal { width: 100%; height: auto; max-height: 90vh; overflow: auto; }
-      }
-    `;
+        @media (max-width: 768px) {
+          .nsing-uploader-button { left: 16px; right: 16px; width: calc(100% - 32px); justify-content: center; }
+          .nsing-uploader-modal { width: 100%; height: auto; max-height: 90vh; overflow: auto; }
+        }
+      `;
       document.head.appendChild(style);
     }
 
