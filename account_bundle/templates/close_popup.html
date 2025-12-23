@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Signed In</title>
+    <script>
+        (function() {
+            try {
+                if (window.opener && !window.opener.closed) {
+                    window.opener.focus();
+                }
+            } catch (err) {
+                console.error(err);
+            }
+            window.close();
+        })();
+    </script>
+</head>
+<body>
+    <p>You are signed in. This window will close automatically.</p>
+</body>
+</html>
