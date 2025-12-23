@@ -19,6 +19,7 @@
 
   let hasInitialized = false;
   let ragflowService = null;
+  let authState = { authenticated: false, username: null };
   let serviceReady = false;
   let serviceError = null;
 
@@ -51,6 +52,7 @@
     const suggestions = overlay.querySelectorAll("[data-nsing-chatbot-suggestion]");
     const form = overlay.querySelector(".nsing-chatbot-form");
     const sendButton = overlay.querySelector(".nsing-chatbot-send");
+    setupAuthControls(overlay, config);
 
     let previousFocus = null;
     let previousOverflowValue = "";
@@ -212,9 +214,13 @@
           <div class="nsing-chatbot-intro">
             <div class="intro-header">
               <img src="${config.buttonIcon}" alt="Assistant" />
-              <div>
-                <h4>${config.welcomeTitle}</h4>
-                <p>${config.welcomeMessage}</p>
+              <div class="nsing-chatbot-intro-text">
+                <div class="nsing-chatbot-auth-row">
+                  <h4><span data-nsing-chatbot-greeting>${config.welcomeTitle}</span></h4>
+                  <button type="button" class="nsing-chatbot-auth-btn" data-nsing-chatbot-signin>Sign in to keep your chat history</button>
+                  <button type="button" class="nsing-chatbot-auth-btn secondary" data-nsing-chatbot-signout hidden>Sign out</button>
+                </div>
+                <p data-nsing-chatbot-subtitle>${config.welcomeMessage}</p>
               </div>
             </div>
           </div>
@@ -399,6 +405,108 @@
     container.className = "nsing-chatbot-markdown";
     container.innerHTML = convertMarkdownToHtml(text);
     return container;
+  }
+
+  function fetchAuthStatus() {
+    return fetch("/auth/status", { credentials: "include" })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Failed to load auth status");
+        }
+        return response.json();
+      })
+      .catch(() => ({ authenticated: false, username: null }));
+  }
+
+  function setupAuthControls(overlay, config) {
+    const greetingEl = overlay.querySelector("[data-nsing-chatbot-greeting]");
+    const subtitleEl = overlay.querySelector("[data-nsing-chatbot-subtitle]");
+    const signInButton = overlay.querySelector("[data-nsing-chatbot-signin]");
+    const signOutButton = overlay.querySelector("[data-nsing-chatbot-signout]");
+    if (!greetingEl || !signInButton || !signOutButton) {
+      return;
+    }
+
+    const defaultGreeting = config.welcomeTitle;
+    const defaultSubtitle = config.welcomeMessage;
+
+    const updateUI = (state) => {
+      if (state.authenticated) {
+        greetingEl.textContent = `Hi ${state.username}!`;
+        if (subtitleEl) {
+          subtitleEl.textContent = "You're signed in. We'll keep this chat history in your account.";
+        }
+        signInButton.hidden = true;
+        signOutButton.hidden = false;
+      } else {
+        greetingEl.textContent = defaultGreeting;
+        if (subtitleEl) {
+          subtitleEl.textContent = defaultSubtitle;
+        }
+        signInButton.hidden = false;
+        signOutButton.hidden = true;
+      }
+    };
+
+    const refresh = () =>
+      fetchAuthStatus().then((state) => {
+        authState = state;
+        updateUI(state);
+        return state;
+      });
+
+    const openAuthPopup = (path) => {
+      const width = 520;
+      const height = 640;
+      const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2);
+      const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2);
+      const url = new URL(path, window.location.origin);
+      url.searchParams.set("next", "/chat");
+      url.searchParams.set("popup", "1");
+      const popup = window.open(
+        url.toString(),
+        "nsing-auth",
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+      if (!popup) {
+        window.location.href = url.toString();
+        return;
+      }
+      popup.focus();
+      const timer = window.setInterval(() => {
+        if (popup.closed) {
+          window.clearInterval(timer);
+          refresh();
+        }
+      }, 800);
+    };
+
+    signInButton.addEventListener("click", () => {
+      openAuthPopup("/auth/login");
+    });
+
+    signOutButton.addEventListener("click", () => {
+      signOutButton.disabled = true;
+      fetch("/auth/api/logout", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      })
+        .then(() => refresh())
+        .finally(() => {
+          signOutButton.disabled = false;
+        });
+    });
+
+    const onFocus = () => refresh();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        refresh();
+      }
+    });
+
+    refresh();
   }
 
   function renderReferences(references) {
@@ -627,6 +735,39 @@
         border-radius: 50%;
         object-fit: cover;
         flex-shrink: 0;
+      }
+      .nsing-chatbot-intro-text {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .nsing-chatbot-auth-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .nsing-chatbot-auth-row h4 {
+        margin: 0;
+        font-size: 18px;
+      }
+      .nsing-chatbot-auth-btn {
+        border: none;
+        border-radius: 999px;
+        background: #0f182d;
+        color: #fff;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .nsing-chatbot-auth-btn.secondary {
+        background: rgba(15, 24, 45, 0.12);
+        color: #0f182d;
+      }
+      .nsing-chatbot-auth-btn[hidden] {
+        display: none !important;
       }
       .nsing-chatbot-intro h4 {
         margin: 0;
