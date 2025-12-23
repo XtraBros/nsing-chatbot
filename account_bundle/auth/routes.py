@@ -14,7 +14,7 @@ def _default_redirect_target():
 
 
 def _resolve_next():
-    next_page = request.args.get('next')
+    next_page = request.values.get('next')
     if next_page and url_parse(next_page).netloc == '':
         return next_page
     return _default_redirect_target()
@@ -42,7 +42,7 @@ def login():
         return redirect(_resolve_next())
 
     login_form = LoginForm()
-    popup_mode = request.args.get("popup") == "1"
+    popup_mode = request.args.get("popup") == "1" or request.form.get("popup") == "1"
     if login_form.validate_on_submit():
         user = User().get_by_username(username=login_form.username.data)
         if user is not None and User.check_password(hashed_password=user["password"], password=login_form.password.data):
@@ -51,8 +51,6 @@ def login():
             user_obj = User(username=user["name"], email=user.get("email"))
             login_user(user_obj, remember=login_form.remember_me.data)
             next_page = _resolve_next()
-            if popup_mode:
-                return render_template("close_popup.html")
             return redirect(next_page)
         else:
             print(f"User '{login_form.username.data}' entered invalid credentials.")
@@ -100,6 +98,13 @@ def register():
             flash(str(exc))
             return render_template('register.html', title='Register', form=form)
         flash('Congratulations, you are now a registered user!')
-        return redirect(url_for('auth.login'))
+        query_params = {}
+        if request.args.get("popup") == "1":
+            query_params["popup"] = "1"
+        next_value = request.args.get("next")
+        if next_value:
+            query_params["next"] = next_value
+        login_url = url_for('auth.login', **query_params)
+        return redirect(login_url)
 
     return render_template('register.html', title='Register', form=form)

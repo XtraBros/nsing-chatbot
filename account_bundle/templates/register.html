@@ -33,6 +33,12 @@
 
         <form class="auth-form" method="post" novalidate>
             {{ form.hidden_tag() }}
+            {% if request.args.get('popup') == '1' %}
+            <input type="hidden" name="popup" value="1">
+            {% endif %}
+            {% if request.args.get('next') %}
+            <input type="hidden" name="next" value="{{ request.args.get('next') }}">
+            {% endif %}
             <label class="auth-field">
                 <span>Username</span>
                 {{ form.username(placeholder="yourname", autocomplete="username") }}
@@ -66,7 +72,7 @@
             <button type="submit" class="auth-submit">Create account</button>
             <p class="auth-switch">
                 Already have an account?
-                <a href="{{ url_for('auth.login') }}">Sign in</a>
+                <a href="{{ url_for('auth.login', popup=request.args.get('popup'), next=request.args.get('next')) }}">Sign in</a>
             </p>
         </form>
     </section>

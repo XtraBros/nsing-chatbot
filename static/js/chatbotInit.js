@@ -461,7 +461,7 @@
       const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2);
       const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2);
       const url = new URL(path, window.location.origin);
-      url.searchParams.set("next", "/chat");
+      url.searchParams.set("next", "/close");
       url.searchParams.set("popup", "1");
       const popup = window.open(
         url.toString(),

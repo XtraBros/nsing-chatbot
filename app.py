@@ -3,7 +3,7 @@ import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from flask import Flask
+from flask import Flask, render_template_string
 
 from account_bundle import init_app as init_account_management
 from chatbot import bp as chatbot_bp
@@ -36,6 +36,40 @@ def build_app():
 
 
 app = build_app()
+
+
+@app.route("/")
+@app.route("/index")
+def landing_page():
+    return app.send_static_file("index.html")
+
+
+@app.route("/close")
+def close_popup_page():
+    return render_template_string(
+        """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Close</title>
+    <script>
+        (function() {
+            try {
+                if (window.opener && !window.opener.closed) {
+                    window.opener.focus();
+                }
+            } catch (err) {}
+            window.close();
+        })();
+    </script>
+</head>
+<body>
+    <p>You may close this tab.</p>
+</body>
+</html>
+        """
+    )
 
 
 if __name__ == "__main__":

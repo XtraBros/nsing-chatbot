@@ -33,6 +33,12 @@
 
         <form class="auth-form" action="" method="post" novalidate>
             {{ login_form.hidden_tag() }}
+            {% if request.args.get('popup') == '1' %}
+            <input type="hidden" name="popup" value="1">
+            {% endif %}
+            {% if request.args.get('next') %}
+            <input type="hidden" name="next" value="{{ request.args.get('next') }}">
+            {% endif %}
             <label class="auth-field">
                 <span>Username</span>
                 {{ login_form.username(placeholder="yourname", autocomplete="username") }}
@@ -55,7 +61,7 @@
             <button type="submit" class="auth-submit">Continue</button>
             <p class="auth-switch">
                 New to NSing?
-                <a href="{{ url_for('auth.register') }}">Create an account</a>
+                <a href="{{ url_for('auth.register', popup=request.args.get('popup'), next=request.args.get('next')) }}">Create an account</a>
             </p>
         </form>
     </section>
