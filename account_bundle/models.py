@@ -42,8 +42,16 @@ def _get_user_collection():
 def _ensure_indexes(collection):
     global _indexes_ensured
     if not _indexes_ensured:
-        collection.create_index("name", unique=True)
-        collection.create_index("email", unique=False)
+        existing_indexes = {idx["name"]: idx for idx in collection.list_indexes()}
+        if "name_1" not in existing_indexes:
+            collection.create_index("name", unique=True)
+        existing_email = existing_indexes.get("email_1")
+        if existing_email and not existing_email.get("unique", False):
+            pass
+        else:
+            if existing_email:
+                collection.drop_index("email_1")
+            collection.create_index("email", unique=False)
         _indexes_ensured = True
 
 
@@ -108,30 +116,69 @@ class ConversationStore:
 
     def __init__(self):
         db = _get_database()
-        self.collection = db["conversation_logs"]
+        self.collection = db["conversation_sessions"]
         self._ensure_indexes()
 
     def _ensure_indexes(self):
-        self.collection.create_index([("username", 1), ("created_at", -1)])
-        self.collection.create_index("session_id")
+        self.collection.create_index("session_id", unique=True)
+        self.collection.create_index([("username", 1), ("updated_at", -1)])
 
-    def log_message(self, username: str, role: str, content: str, session_id: Optional[str] = None):
-        if not username or not role:
-            raise ValueError("Username and role are required to log a message.")
-        document = {
-            "username": username,
+    def append_message(
+        self,
+        session_id: str,
+        username: Optional[str],
+        role: str,
+        content: str,
+        *,
+        title: Optional[str] = None,
+        message_metadata: Optional[dict] = None,
+        session_metadata: Optional[dict] = None,
+    ):
+        """Append a message to a session, creating the session document if needed."""
+        if not session_id or not username:
+            return
+
+        now = datetime.now(timezone.utc)
+        message = {
             "role": role,
             "content": content,
-            "session_id": session_id,
-            "created_at": datetime.now(timezone.utc),
+            "timestamp": now,
         }
-        self.collection.insert_one(document)
+        if message_metadata:
+            message["metadata"] = message_metadata
 
-    def get_history(self, username: str, limit: int = 20):
-        query = {"username": username}
+        update = {
+            "$set": {
+                "updated_at": now,
+            },
+            "$push": {"messages": message},
+            "$inc": {"message_count": 1},
+            "$setOnInsert": {
+                "session_id": session_id,
+                "username": username,
+                "created_at": now,
+                "metadata": session_metadata or {},
+            },
+        }
+
+        if title:
+            update["$setOnInsert"]["title"] = title
+        if session_metadata:
+            update["$setOnInsert"]["metadata"] = session_metadata
+
+        self.collection.update_one({"session_id": session_id}, update, upsert=True)
+
+    def list_sessions(self, username: str, limit: int = 20):
+        if not username:
+            return []
         cursor = (
-            self.collection.find(query)
-            .sort("created_at", -1)
+            self.collection.find({"username": username})
+            .sort("updated_at", -1)
             .limit(max(limit, 1))
         )
         return list(cursor)
+
+    def get_session(self, username: str, session_id: str):
+        if not username or not session_id:
+            return None
+        return self.collection.find_one({"username": username, "session_id": session_id})
