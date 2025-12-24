@@ -48,8 +48,16 @@ def _get_config_value(key: str):
 
 
 def _get_api_base():
-    print(_get_config_value("RAGFLOW_API_BASE"))
-    return (_get_config_value("RAGFLOW_API_BASE") or "").rstrip("/")
+    base = (_get_config_value("RAGFLOW_API_BASE") or "").rstrip("/")
+    if not base:
+        return ""
+    if base.startswith("http://") or base.startswith("https://"):
+        return base
+    # Build absolute URL when a relative path (e.g. "/ragflow") is provided.
+    scheme = request.scheme if request else "https"
+    host = request.host if request else current_app.config.get("SERVER_NAME", "")
+    prefix = f"{scheme}://{host}".rstrip("/")
+    return f"{prefix}{base}"
 
 
 def _get_agent_id():
