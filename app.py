@@ -1,10 +1,9 @@
 import logging
 import os
-import json
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from flask import Flask, render_template_string, Response
+from flask import Flask, jsonify, render_template_string
 
 from account_bundle import init_app as init_account_management
 from chatbot import bp as chatbot_bp
@@ -72,20 +71,16 @@ def close_popup_page():
         """
     )
 
-@app.route("/static-config.js")
-def static_config():
+@app.get("/api/ragflow/config")
+def ragflow_config():
     cfg = app.config
-    payload = {
-        "RAGFLOW_API_BASE": cfg.get("RAGFLOW_API_BASE", ""),
-        "RAGFLOW_API_KEY": cfg.get("RAGFLOW_API_KEY", ""),
-    }
-    js = "\n".join(
-        [
-            f"window.RAGFLOW_API_BASE = {json.dumps(payload['RAGFLOW_API_BASE'])};",
-            f"window.RAGFLOW_API_KEY = {json.dumps(payload['RAGFLOW_API_KEY'])};",
-        ]
+    return jsonify(
+        {
+            "apiBase": cfg.get("RAGFLOW_API_BASE", ""),
+            "apiKey": cfg.get("RAGFLOW_API_KEY", ""),
+            "agentId": cfg.get("RAGFLOW_AGENT_ID", ""),
+        }
     )
-    return Response(js, mimetype="application/javascript")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 9001))
