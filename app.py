@@ -77,12 +77,14 @@ def static_config():
     cfg = app.config
     payload = {
         "RAGFLOW_API_BASE": cfg.get("RAGFLOW_API_BASE", ""),
+        "RAGFLOW_UPLOADS_KBID": cfg.get("RAGFLOW_UPLOADS_KBID", ""),
         "RAGFLOW_API_KEY": cfg.get("RAGFLOW_API_KEY", ""),
         "RAGFLOW_AGENT_ID": cfg.get("RAGFLOW_AGENT_ID", ""),
     }
     js = "\n".join(
         [
             f"window.RAGFLOW_API_BASE = {json.dumps(payload['RAGFLOW_API_BASE'])};",
+            f"window.RAGFLOW_UPLOADS_KBID = {json.dumps(payload['RAGFLOW_UPLOADS_KBID'])};",
             f"window.RAGFLOW_API_KEY = {json.dumps(payload['RAGFLOW_API_KEY'])};",
             f"window.RAGFLOW_AGENT_ID = {json.dumps(payload['RAGFLOW_AGENT_ID'])};",
         ]
