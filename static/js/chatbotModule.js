@@ -1,40 +1,36 @@
 (function (global) {
+  const AGENT_COMPLETION_PATH = "/api/v1/agents_openai/{agent_id}/chat/completions";
+  const SESSION_STORAGE_PREFIX = "ragflow-chat-session-";
   const defaultServiceOptions = {
-    model: "default"
+    apiBase: "",
+    agentId: "",
+    apiKey: "",
+    model: "default",
+    agentCompletionPath: AGENT_COMPLETION_PATH,
+    timeoutMs: 120000
   };
 
   function createChatbotService(overrides = {}) {
     const globalConfig = global.ragflowChatConfig || {};
-    const options = {
+    const options = normalizeOptions({
       ...defaultServiceOptions,
       ...globalConfig,
       ...overrides
-    };
-
-    if (!global.RagflowChat || typeof global.RagflowChat.createService !== "function") {
-      console.warn("Ragflow chat module is not available on the page.");
-      return null;
-    }
-
-    let ragflowClient = null;
+    });
     try {
-      ragflowClient = global.RagflowChat.createService(options);
+      validateOptions(options);
     } catch (error) {
       console.warn("Unable to initialize Ragflow chat client", error);
       return null;
     }
 
+    const ragflowClient = createRagflowClient(options);
+
     async function ensureSession() {
-      if (!ragflowClient) {
-        throw new Error("Chat service is not ready.");
-      }
       return ragflowClient.ensureSession();
     }
 
     async function sendMessage(prompt) {
-      if (!ragflowClient) {
-        throw new Error("Chat service is not ready.");
-      }
       const { data } = await ragflowClient.sendMessage(prompt, { model: options.model });
       const reply = parseAssistantReply(data);
       return reply;
@@ -137,6 +133,249 @@
       });
     });
     return items;
+  }
+
+  function createRagflowClient(options) {
+    const endpointPath = (options.agentCompletionPath || AGENT_COMPLETION_PATH).replace(
+      "{agent_id}",
+      options.agentId
+    );
+    const endpoint = `${options.apiBase}${endpointPath}`;
+    const storageKey = `${SESSION_STORAGE_PREFIX}${hashString(
+      endpoint + (options.model || "default")
+    )}`;
+    let currentSessionId = null;
+    let ensuringSession = null;
+
+    async function ensureSession() {
+      if (currentSessionId) {
+        return currentSessionId;
+      }
+      if (ensuringSession) {
+        return ensuringSession;
+      }
+      ensuringSession = (async () => {
+        const stored = getStoredSession(storageKey);
+        if (stored) {
+          currentSessionId = stored;
+          return stored;
+        }
+        currentSessionId = generateSessionId();
+        saveSession(storageKey, currentSessionId);
+        return currentSessionId;
+      })().finally(() => {
+        ensuringSession = null;
+      });
+      return ensuringSession;
+    }
+
+    async function sendMessage(message, extra = {}) {
+      const prompt = (message || "").trim();
+      if (!prompt) {
+        throw new Error("Message is required.");
+      }
+      const sessionId = await ensureSession();
+      const body = {
+        model: extra.model || options.model,
+        messages: [{ role: "user", content: prompt }],
+        stream: false
+      };
+      const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+      const timeoutId =
+        controller && options.timeoutMs
+          ? setTimeout(() => controller.abort(), options.timeoutMs)
+          : null;
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${options.apiKey}`
+          },
+          body: JSON.stringify(body),
+          signal: controller ? controller.signal : undefined
+        });
+        const text = await response.text();
+        if (!response.ok) {
+          const errorMessage = text || `Request failed (${response.status}).`;
+          throw new Error(errorMessage);
+        }
+        const data = text ? safeJsonParse(text) : {};
+        const { references, chunks } = extractReferences(data, options.apiBase);
+        if (references.length) {
+          data.references = references;
+        }
+        if (Object.keys(chunks).length) {
+          data.chunks = chunks;
+        }
+        return { data, sessionId };
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      }
+    }
+
+    return {
+      ensureSession,
+      sendMessage
+    };
+  }
+
+  function normalizeOptions(options) {
+    return {
+      ...options,
+      apiBase: (options.apiBase || "").replace(/\/+$/, ""),
+      agentCompletionPath: options.agentCompletionPath || AGENT_COMPLETION_PATH,
+      timeoutMs: options.timeoutMs || 120000
+    };
+  }
+
+  function validateOptions(options) {
+    if (!options.apiBase) {
+      throw new Error("RAGFlow apiBase is not configured.");
+    }
+    if (!options.agentId) {
+      throw new Error("RAGFlow agentId is not configured.");
+    }
+    if (!options.apiKey) {
+      throw new Error("RAGFlow apiKey is not configured.");
+    }
+  }
+
+  function safeJsonParse(text) {
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      throw new Error("Received invalid JSON from RAGFlow.");
+    }
+  }
+
+  function generateSessionId() {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  function getStoredSession(key) {
+    try {
+      return localStorage.getItem(key);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function saveSession(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch (error) {
+      console.warn("Unable to persist session id", error);
+    }
+  }
+
+  function hashString(input = "") {
+    let hash = 0;
+    for (let i = 0; i < input.length; i += 1) {
+      hash = (hash << 5) - hash + input.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash).toString(36);
+  }
+
+  function extractReferences(apiResponse, apiBase) {
+    if (!apiResponse || typeof apiResponse !== "object") {
+      return { references: [], chunks: {} };
+    }
+    const choices = Array.isArray(apiResponse.choices) ? apiResponse.choices : [];
+    if (!choices.length) {
+      return { references: [], chunks: {} };
+    }
+    const baseUrl = (apiBase || "").replace(/\/+$/, "");
+    const references = [];
+    const chunksMap = {};
+    const seen = new Set();
+
+    choices.forEach((choice) => {
+      const message = (choice && choice.message) || {};
+      const reference = message.reference || {};
+      if (!reference) {
+        return;
+      }
+      const docAggs = reference.doc_aggs || {};
+      const chunks = reference.chunks || {};
+      const docMeta = {};
+
+      if (chunks && typeof chunks === "object") {
+        Object.entries(chunks).forEach(([chunkId, chunk]) => {
+          if (!chunkId || !chunk) {
+            return;
+          }
+          chunksMap[chunkId] = {
+            id: chunkId,
+            content: chunk.content || chunk.text || chunk.chunk_content || "",
+            document_id: chunk.document_id,
+            document_name: chunk.document_name
+          };
+          const docId = chunk.document_id;
+          if (!docId) {
+            return;
+          }
+          const entry = docMeta[docId] || {};
+          if (chunk.image_id && !entry.image_id) {
+            entry.image_id = chunk.image_id;
+          }
+          if (chunk.document_name && !entry.name) {
+            entry.name = chunk.document_name;
+          }
+          docMeta[docId] = entry;
+        });
+      }
+
+      if (docAggs && typeof docAggs === "object") {
+        Object.values(docAggs).forEach((doc) => {
+          const docId = doc?.doc_id || doc?.docId;
+          if (!docId || seen.has(docId)) {
+            return;
+          }
+          seen.add(docId);
+          const docName = doc?.doc_name || doc?.docName || docMeta[docId]?.name || "Reference document";
+          references.push({
+            id: docId,
+            name: docName,
+            url: buildDocumentUrl(baseUrl, docId, docName),
+            thumbnail: buildThumbnailUrl(baseUrl, docMeta[docId]?.image_id, docId)
+          });
+        });
+      }
+    });
+
+    return { references, chunks: chunksMap };
+  }
+
+  function buildDocumentUrl(baseUrl, docId, documentName) {
+    if (!baseUrl || !docId) {
+      return "";
+    }
+    const encodedId = encodeURIComponent(String(docId).trim());
+    const query = [];
+    if (documentName && typeof documentName === "string" && documentName.includes(".")) {
+      const ext = documentName.split(".").pop();
+      if (ext) {
+        query.push(`ext=${encodeURIComponent(ext)}`);
+      }
+    }
+    query.unshift("prefix=document");
+    return `${baseUrl}/document/${encodedId}?${query.join("&")}`;
+  }
+
+  function buildThumbnailUrl(baseUrl, imageId, docId) {
+    if (!baseUrl || !imageId) {
+      return "";
+    }
+    const encodedImageId = encodeURIComponent(String(imageId).trim());
+    const suffix = docId ? `-thumbnail_${encodeURIComponent(String(docId).trim())}.png` : "";
+    return `${baseUrl}/v1/document/image/${encodedImageId}${suffix}`;
   }
 
   global.NsingChatbotService = {
