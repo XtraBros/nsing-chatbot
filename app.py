@@ -78,11 +78,13 @@ def static_config():
     payload = {
         "RAGFLOW_API_BASE": cfg.get("RAGFLOW_API_BASE", ""),
         "RAGFLOW_API_KEY": cfg.get("RAGFLOW_API_KEY", ""),
+        "RAGFLOW_AGENT_ID": cfg.get("RAGFLOW_AGENT_ID", ""),
     }
     js = "\n".join(
         [
             f"window.RAGFLOW_API_BASE = {json.dumps(payload['RAGFLOW_API_BASE'])};",
             f"window.RAGFLOW_API_KEY = {json.dumps(payload['RAGFLOW_API_KEY'])};",
+            f"window.RAGFLOW_AGENT_ID = {json.dumps(payload['RAGFLOW_AGENT_ID'])};",
         ]
     )
     return Response(js, mimetype="application/javascript")

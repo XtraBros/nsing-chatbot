@@ -1507,10 +1507,14 @@ Our team possess extensive expertise in designing products of General MCU, Secur
 <!-- layui -->
 <script src="layui/layui.js"></script>
 
-<script src="js/chatbotModule.js"></script>
-<script src="js/chatbotInit.js"></script>
 <script src="/static-config.js"></script>
 <script>
+  window.ragflowChatConfig = {
+    apiBase: window.RAGFLOW_API_BASE,
+    agentId: window.RAGFLOW_AGENT_ID,
+    apiKey: window.RAGFLOW_API_KEY,
+    model: "default"
+  };
   window.ragflowUploaderConfig = {
     buttonLabel: "Upload Files",
     // buttonIcon: "images/upload.png",
@@ -1521,6 +1525,9 @@ Our team possess extensive expertise in designing products of General MCU, Secur
     buttonOffset: 92
   };
 </script>
+<script src="js/ragflowChat.js"></script>
+<script src="js/chatbotModule.js"></script>
+<script src="js/chatbotInit.js"></script>
 <script src="js/ragflowUploader.js"></script>
 </body>
 </html>
