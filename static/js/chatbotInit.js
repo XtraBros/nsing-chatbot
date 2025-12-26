@@ -333,7 +333,15 @@
 
       const popupContent = document.createElement("span");
       popupContent.className = "nsing-chatbot-chunk-reference-popup-content";
-      popupContent.textContent = chunkRef.content;
+      const htmlFragment = renderChunkHTML(chunkRef.content);
+      if (htmlFragment) {
+        const body = document.createElement("div");
+        body.className = "nsing-chatbot-chunk-reference-popup-body";
+        body.appendChild(htmlFragment);
+        popupContent.appendChild(body);
+      } else {
+        popupContent.textContent = chunkRef.content;
+      }
 
       popup.appendChild(popupContent);
       container.appendChild(button);
@@ -354,6 +362,11 @@
     // Extract and render chunk references
     const chunkRefs = extractChunkReferences(content, chunks);
     if (chunkRefs.length > 0) {
+      try {
+        console.log("[chatbot] raw chunk references", chunkRefs);
+      } catch (err) {
+        /* ignore */
+      }
       fragment.appendChild(renderChunkReferences(chunkRefs));
     }
 
@@ -379,6 +392,98 @@
 
     // Position tooltips after rendering
     positionChunkTooltips(bubble);
+  }
+
+  function renderChunkHTML(rawContent) {
+    if (!rawContent || typeof rawContent !== "string") {
+      return null;
+    }
+    const template = document.createElement("template");
+    template.innerHTML = rawContent;
+    const fragment = document.createDocumentFragment();
+    const allowedTags = new Set([
+      "p",
+      "div",
+      "span",
+      "strong",
+      "em",
+      "b",
+      "i",
+      "u",
+      "br",
+      "code",
+      "pre",
+      "ul",
+      "ol",
+      "li",
+      "table",
+      "thead",
+      "tbody",
+      "tfoot",
+      "tr",
+      "td",
+      "th",
+      "caption"
+    ]);
+    const allowedAttributes = new Set(["href", "title", "colspan", "rowspan", "scope"]);
+
+    template.content.childNodes.forEach((node) => {
+      const sanitized = sanitizeNode(node, allowedTags, allowedAttributes);
+      if (sanitized) {
+        fragment.appendChild(sanitized);
+      }
+    });
+
+    return fragment.hasChildNodes() ? fragment : null;
+  }
+
+  function sanitizeNode(node, allowedTags, allowedAttributes) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return document.createTextNode(node.textContent);
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return null;
+    }
+    const tagName = node.tagName.toLowerCase();
+    const isAllowed = allowedTags.has(tagName);
+    const target = isAllowed ? document.createElement(tagName) : document.createDocumentFragment();
+
+    node.childNodes.forEach((child) => {
+      const sanitizedChild = sanitizeNode(child, allowedTags, allowedAttributes);
+      if (sanitizedChild) {
+        target.appendChild(sanitizedChild);
+      }
+    });
+
+    if (isAllowed) {
+      Array.from(node.attributes).forEach((attr) => {
+        const name = attr.name.toLowerCase();
+        if (!allowedAttributes.has(name)) {
+          return;
+        }
+        if (name === "href") {
+          if (!isSafeHref(attr.value)) {
+            return;
+          }
+        }
+        target.setAttribute(name, attr.value);
+      });
+    }
+
+    return target;
+  }
+
+  function isSafeHref(value) {
+    const trimmed = (value || "").trim().toLowerCase();
+    if (!trimmed) {
+      return false;
+    }
+    return (
+      trimmed.startsWith("http://") ||
+      trimmed.startsWith("https://") ||
+      trimmed.startsWith("/") ||
+      trimmed.startsWith("#")
+    );
   }
 
   function positionChunkTooltips(container) {
@@ -923,8 +1028,8 @@
         color: #fff;
         padding: 12px;
         border-radius: 8px;
-        min-width: calc(min(900px, 95vw) - 100px);
-        max-width: calc(min(900px, 95vw) - 100px);
+        min-width: 280px;
+        max-width: calc(min(900px, 95vw) - 80px);
         width: auto;
         font-size: 13px;
         line-height: 1.5;
@@ -934,8 +1039,6 @@
         z-index: 10000;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
         transform: translate(-50%, calc(-100% - 8px));
-        white-space: pre-wrap;
-        word-wrap: break-word;
       }
       .nsing-chatbot-chunk-reference:hover .nsing-chatbot-chunk-reference-popup,
       .nsing-chatbot-chunk-reference-btn:focus-visible + .nsing-chatbot-chunk-reference-popup {
@@ -944,6 +1047,43 @@
       }
       .nsing-chatbot-chunk-reference-popup-content {
         display: block;
+        padding: 12px;
+        border-radius: 12px;
+        background: #ffffff;
+        color: #111111;
+        max-width: min(520px, 80vw);
+        max-height: min(360px, 80vh);
+        overflow: auto;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        white-space: normal;
+      }
+
+      .nsing-chatbot-chunk-reference-popup-body > *:first-child {
+        margin-top: 0;
+      }
+
+      .nsing-chatbot-chunk-reference-popup-body > *:last-child {
+        margin-bottom: 0;
+      }
+
+      .nsing-chatbot-chunk-reference-popup-body table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+      }
+
+      .nsing-chatbot-chunk-reference-popup-body table td,
+      .nsing-chatbot-chunk-reference-popup-body table th {
+        border: 1px solid rgba(15, 23, 42, 0.15);
+        padding: 4px 6px;
+        text-align: left;
+      }
+
+      .nsing-chatbot-chunk-reference-popup-body pre,
+      .nsing-chatbot-chunk-reference-popup-body code {
+        white-space: pre-wrap;
+        word-break: break-word;
       }
       .nsing-chatbot-references {
         margin-top: 10px;

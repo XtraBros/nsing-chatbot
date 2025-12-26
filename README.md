@@ -46,11 +46,11 @@ init_account_management(app, url_prefix="/auth")
 That call wires up:
 - Flask-Login + CSRF protection for all forms and API calls.
 - Password hashing, username uniqueness enforcement, and password-complexity validation backed by MongoDB.
-- A shared MongoDB connection pool with collections for both `user_details` and `conversation_logs`.
+- A shared MongoDB connection pool with collections for `user_details` plus optional helpers (e.g., conversation storage) that you can wire into other flows.
 - Session-aware logout endpoint (POST-only, CSRF protected).
-- Login optionality—anonymous users can chat, authenticated users get persistent history.
+- Login optionality—anonymous visitors can still use the chatbot, while authenticated users unlock gated app capabilities.
 
-Once authenticated, users are redirected to `/chat`, which serves the NSing front-end. All chatbot APIs (`/api/chatbot/*`) require an authenticated session and automatically persist user/assistant exchanges per account.
+Once authenticated, users are redirected to `/chat`, which serves the NSing front-end. The chatbot experience now calls RAGFlow directly from the browser (via `ragflowChat.js`), so the Flask app no longer proxies chat requests; only the account features remain server-side.
 
 ## Local Development Setup
 
@@ -79,8 +79,7 @@ Once authenticated, users are redirected to `/chat`, which serves the NSing fron
 1. Visit `/auth/register` to create a new account (password must be 8+ chars with letters and numbers). User records are stored in the `user_details` collection.
 2. Log in via `/auth/login` (optional). After successful authentication you are redirected to `/chat`.
 3. Use the chatbot UI:
-   - Anonymous users can ask questions without creating an account; nothing is stored in MongoDB.
-   - Authenticated users have every prompt/response saved in `conversation_logs` with timestamps and session IDs.
-4. Retrieve recent conversation history via `GET /api/chatbot/history?limit=20` while logged in (history requires authentication).
+   - Anonymous users can ask questions without creating an account; requests hit RAGFlow directly from the browser.
+   - Authenticated users access the same chat UI plus any additional gated functionality you layer on (e.g., file uploads, admin tools).
 
-These steps exercise the entire stack—authentication, session management, chatbot proxying, and MongoDB persistence—ensuring the module is ready for production-style testing inside the NSing platform. Because the account bundle is self-contained (templates, static assets, blueprints, and data layer in one folder), you can drop it into another repo and repeat the same integration process with minimal wiring.
+These steps exercise the entire stack—authentication, session management, static asset delivery, and MongoDB-backed account workflows—ensuring the module is ready for production-style testing inside the NSing platform. Because the account bundle is self-contained (templates, static assets, blueprints, and data layer in one folder), you can drop it into another repo and repeat the same integration process with minimal wiring.
