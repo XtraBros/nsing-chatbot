@@ -40,9 +40,9 @@
             <input type="hidden" name="next" value="{{ request.args.get('next') }}">
             {% endif %}
             <label class="auth-field">
-                <span>Username</span>
-                {{ login_form.username(placeholder="yourname", autocomplete="username") }}
-                {% for error in login_form.username.errors %}
+                <span>Email</span>
+                {{ login_form.email(placeholder="you@company.com", autocomplete="email") }}
+                {% for error in login_form.email.errors %}
                     <small>{{ error }}</small>
                 {% endfor %}
             </label>
