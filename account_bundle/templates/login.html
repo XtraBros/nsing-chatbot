@@ -21,13 +21,13 @@
             </div>
         </header>
 
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-        <div class="auth-alert">
-            {% for message in messages %}
+            {% for category, message in messages %}
+            <div class="auth-alert{% if category == 'success' %} success{% endif %}">
                 <p>{{ message }}</p>
+            </div>
             {% endfor %}
-        </div>
         {% endif %}
         {% endwith %}
 
@@ -41,17 +41,21 @@
             {% endif %}
             <label class="auth-field">
                 <span>Email</span>
-                {{ login_form.email(placeholder="you@company.com", autocomplete="email") }}
+                {{ login_form.email(placeholder="you@company.com", autocomplete="email", value=request.args.get("email") or "") }}
                 {% for error in login_form.email.errors %}
                     <small>{{ error }}</small>
                 {% endfor %}
             </label>
             <label class="auth-field">
                 <span>Password</span>
-                {{ login_form.password(type="password", placeholder="••••••••", autocomplete="current-password") }}
+                {{ login_form.password(type="password", placeholder="••••••••", autocomplete="current-password", id="login-password", data_password="1") }}
                 {% for error in login_form.password.errors %}
                     <small>{{ error }}</small>
                 {% endfor %}
+            </label>
+            <label class="auth-toggle">
+                <input type="checkbox" data-toggle-password>
+                <span>Show password</span>
             </label>
             <label class="auth-remember">
                 {{ login_form.remember_me() }}
@@ -66,5 +70,6 @@
         </form>
     </section>
 </main>
+<script src="{{ url_for('auth.static', filename='js/auth.js') }}"></script>
 </body>
 </html>

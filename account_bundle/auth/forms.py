@@ -7,13 +7,28 @@ from wtforms.validators import DataRequired, Email, EqualTo, Length, Regexp, Val
 
 class LoginForm(FlaskForm):
     """Login details"""
-    email = StringField("Email", validators=[DataRequired(), Email(), Length(max=255)])
+    email = StringField(
+        "Email",
+        validators=[
+            DataRequired(),
+            Email(message="Please enter a valid email address."),
+            Length(max=255),
+        ],
+    )
     password = PasswordField("Password", validators=[DataRequired()])
     remember_me = BooleanField("Remember Me")
     submit = SubmitField("Sign In")
 
 
 class RegistrationForm(FlaskForm):
+    username = StringField(
+        "Username",
+        validators=[
+            DataRequired(),
+            Length(min=2, max=64),
+            Regexp(regex=r"^[A-Za-z0-9_.-]+$", message="Username can use letters, numbers, . _ -"),
+        ],
+    )
     email = StringField('Email', validators=[DataRequired(), Email(), Length(max=255)])
     password = PasswordField(
         'Password',
@@ -23,6 +38,10 @@ class RegistrationForm(FlaskForm):
             Regexp(
                 regex=r"^(?=.*[A-Za-z])(?=.*\d).+$",
                 message="Password must contain letters and numbers.",
+            ),
+            Regexp(
+                regex=r'^[^"\'\\/]+$',
+                message='Password cannot include quotes or slashes.',
             ),
         ],
     )

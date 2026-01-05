@@ -76,6 +76,12 @@ body {
     font-size: 14px;
 }
 
+.auth-alert.success {
+    background: rgba(34, 197, 94, 0.18);
+    border: 1px solid rgba(34, 197, 94, 0.35);
+    color: #bbf7d0;
+}
+
 .auth-form {
     display: flex;
     flex-direction: column;
@@ -120,6 +126,19 @@ body {
 }
 
 .auth-remember input {
+    width: 18px;
+    height: 18px;
+}
+
+.auth-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.auth-toggle input {
     width: 18px;
     height: 18px;
 }

@@ -21,13 +21,13 @@
             </div>
         </header>
 
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-        <div class="auth-alert">
-            {% for message in messages %}
+            {% for category, message in messages %}
+            <div class="auth-alert{% if category == 'success' %} success{% endif %}">
                 <p>{{ message }}</p>
+            </div>
             {% endfor %}
-        </div>
         {% endif %}
         {% endwith %}
 
@@ -40,6 +40,13 @@
             <input type="hidden" name="next" value="{{ request.args.get('next') }}">
             {% endif %}
             <label class="auth-field">
+                <span>Nickname</span>
+                {{ form.username(type="text", placeholder="yourname", autocomplete="username") }}
+                {% for error in form.username.errors %}
+                    <small>{{ error }}</small>
+                {% endfor %}
+            </label>
+            <label class="auth-field">
                 <span>Email</span>
                 {{ form.email(type="email", placeholder="you@company.com", autocomplete="email") }}
                 {% for error in form.email.errors %}
@@ -48,18 +55,22 @@
             </label>
             <label class="auth-field">
                 <span>Password</span>
-                {{ form.password(type="password", placeholder="At least 8 characters", autocomplete="new-password") }}
-                <small>Password must be at least 8 characters and include letters and numbers.</small>
+                {{ form.password(type="password", placeholder="At least 8 characters", autocomplete="new-password", id="register-password", data_password="1") }}
+                <small>Password must be at least 8 characters, include letters and numbers, and exclude quotes or slashes.</small>
                 {% for error in form.password.errors %}
                     <small>{{ error }}</small>
                 {% endfor %}
             </label>
             <label class="auth-field">
                 <span>Confirm password</span>
-                {{ form.confirm_password(type="password", placeholder="Repeat password", autocomplete="new-password") }}
+                {{ form.confirm_password(type="password", placeholder="Repeat password", autocomplete="new-password", id="register-confirm-password", data_password="1") }}
                 {% for error in form.confirm_password.errors %}
                     <small>{{ error }}</small>
                 {% endfor %}
+            </label>
+            <label class="auth-toggle">
+                <input type="checkbox" data-toggle-password>
+                <span>Show passwords</span>
             </label>
 
             <button type="submit" class="auth-submit">Create account</button>
@@ -70,5 +81,6 @@
         </form>
     </section>
 </main>
+<script src="{{ url_for('auth.static', filename='js/auth.js') }}"></script>
 </body>
 </html>

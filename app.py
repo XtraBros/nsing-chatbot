@@ -4,9 +4,10 @@ import json
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from flask import Flask, render_template_string, Response
+from flask import Flask, render_template_string, Response, jsonify, session, request
 
-from account_bundle import init_app as init_account_management
+from account_bundle import init_app as init_account_management, csrf
+from account_bundle.auth.ragflow_api import register_user as ragflow_register_user
 from chatbot import bp as chatbot_bp
 from config import Config
 
@@ -32,6 +33,13 @@ def build_app():
         logging.Formatter("%(asctime)s [%(levelname)s] %(name)s - %(message)s")
     )
     flask_app.logger.addHandler(file_handler)
+    if not any(isinstance(handler, logging.StreamHandler) for handler in flask_app.logger.handlers):
+        stream_handler = logging.StreamHandler()
+        stream_handler.setLevel(logging.INFO)
+        stream_handler.setFormatter(
+            logging.Formatter("%(asctime)s [%(levelname)s] %(name)s - %(message)s")
+        )
+        flask_app.logger.addHandler(stream_handler)
     flask_app.logger.setLevel(logging.INFO)
     return flask_app
 
@@ -90,6 +98,37 @@ def static_config():
         ]
     )
     return Response(js, mimetype="application/javascript")
+
+
+@app.get("/api/ragflow/session-token")
+def ragflow_session_token():
+    token = session.get("ragflow_token")
+    if not token:
+        return jsonify({"token": None}), 401
+    return jsonify({"token": token})
+
+
+@app.post("/api/ragflow/register")
+@csrf.exempt
+def ragflow_register():
+    payload = request.get_json(silent=True) or {}
+    email = (payload.get("email") or "").strip()
+    password = payload.get("password") or ""
+    nickname = (payload.get("nickname") or "").strip() or (email.split("@")[0] if email else "")
+    if not email or not password:
+        return jsonify({"error": "email and password are required"}), 400
+    cfg = app.config
+    try:
+        result = ragflow_register_user(
+            nickname=nickname,
+            email=email,
+            password=password,
+            api_base=cfg.get("RAGFLOW_API_BASE", ""),
+        )
+    except Exception as exc:
+        app.logger.exception("RAGFlow register failed")
+        return jsonify({"error": str(exc)}), 502
+    return jsonify(result)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 9001))

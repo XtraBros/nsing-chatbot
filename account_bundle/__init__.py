@@ -11,6 +11,7 @@ csrf = CSRFProtect()
 
 def init_app(app, *, url_prefix="/auth"):
     """Register account management blueprints and extensions on an existing Flask app."""
+    app.config.setdefault("ACCOUNT_BUNDLE_PROVIDER", "ragflow_ssh")
     login.init_app(app)
     csrf.init_app(app)
 
@@ -18,6 +19,3 @@ def init_app(app, *, url_prefix="/auth"):
     app.register_blueprint(auth_bp, url_prefix=url_prefix)
 
     return app
-
-
-from account_bundle import models  # noqa: E402,F401

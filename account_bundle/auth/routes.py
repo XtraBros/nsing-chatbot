@@ -29,7 +29,12 @@ def load_user(username):
 @bp.get("/status")
 def auth_status():
     if current_user.is_authenticated:
-        return jsonify({"authenticated": True, "username": current_user.get_id()})
+        return jsonify(
+            {
+                "authenticated": True,
+                "username": current_user.username or current_user.get_id(),
+            }
+        )
     return jsonify({"authenticated": False, "username": None})
 
 
@@ -93,20 +98,22 @@ def register():
         provider = get_auth_provider()
         try:
             provider.register(
-                username=form.email.data,
+                username=form.username.data,
                 email=form.email.data,
                 password=form.password.data,
             )
         except Exception as exc:
             flash(str(exc))
             return render_template('register.html', title='Register', form=form)
-        flash('Congratulations, you are now a registered user!')
+        flash('Congratulations, you are now a registered user!', "success")
         query_params = {}
         if request.args.get("popup") == "1":
             query_params["popup"] = "1"
         next_value = request.args.get("next")
         if next_value:
             query_params["next"] = next_value
+        if form.email.data:
+            query_params["email"] = form.email.data
         login_url = url_for('auth.login', **query_params)
         return redirect(login_url)
 

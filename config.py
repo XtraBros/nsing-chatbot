@@ -21,10 +21,10 @@ class Config:
     """Default configuration used by the Flask application."""
 
     SECRET_KEY = _require_env("SECRET_KEY")
-    MONGO_URI = _require_env("MONGO_URI")
-    MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "Users")
+    ACCOUNT_BUNDLE_PROVIDER = os.getenv("ACCOUNT_BUNDLE_PROVIDER", "ragflow_ssh").lower()
     RAGFLOW_API_BASE = os.getenv("RAGFLOW_API_BASE", "http://localhost:8000").rstrip("/")
     RAGFLOW_UPLOADS_KBID = os.getenv("RAGFLOW_UPLOADS_KBID", "")
     RAGFLOW_AGENT_ID = os.getenv("RAGFLOW_AGENT_ID", "")
     RAGFLOW_API_KEY = os.getenv("RAGFLOW_API_KEY", "")
+    RAGFLOW_PUBLIC_KEY_PEM = os.getenv("RAGFLOW_PUBLIC_KEY_PEM", "")
     ACCOUNT_BUNDLE_DEFAULT_REDIRECT = "/chat"

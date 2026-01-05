@@ -5,6 +5,7 @@
     apiBase: "",
     agentId: "",
     apiKey: "",
+    tokenEndpoint: "",
     model: "default",
     agentCompletionPath: AGENT_COMPLETION_PATH,
     timeoutMs: 120000
@@ -146,6 +147,8 @@
     )}`;
     let currentSessionId = null;
     let ensuringSession = null;
+    let tokenPromise = null;
+    let cachedToken = null;
 
     async function ensureSession() {
       if (currentSessionId) {
@@ -175,6 +178,10 @@
         throw new Error("Message is required.");
       }
       const sessionId = await ensureSession();
+      const authToken = await resolveAuthToken();
+      if (!authToken) {
+        throw new Error("Missing RAGFlow API token.");
+      }
       const body = {
         model: extra.model || options.model,
         messages: [{ role: "user", content: prompt }],
@@ -190,7 +197,7 @@
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${options.apiKey}`
+            Authorization: `Bearer ${authToken}`
           },
           body: JSON.stringify(body),
           signal: controller ? controller.signal : undefined
@@ -216,6 +223,38 @@
       }
     }
 
+    async function resolveAuthToken() {
+      if (!options.tokenEndpoint) {
+        return options.apiKey;
+      }
+      if (cachedToken !== null) {
+        return cachedToken || options.apiKey;
+      }
+      if (!tokenPromise) {
+        tokenPromise = fetch(options.tokenEndpoint, {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store"
+        })
+          .then(async (response) => {
+            if (!response.ok) {
+              return "";
+            }
+            const data = await response.json().catch(() => ({}));
+            return data?.token || "";
+          })
+          .catch(() => "")
+          .then((token) => {
+            cachedToken = token;
+            return cachedToken || options.apiKey;
+          })
+          .finally(() => {
+            tokenPromise = null;
+          });
+      }
+      return tokenPromise;
+    }
+
     return {
       ensureSession,
       sendMessage
@@ -238,7 +277,7 @@
     if (!options.agentId) {
       throw new Error("RAGFlow agentId is not configured.");
     }
-    if (!options.apiKey) {
+    if (!options.apiKey && !options.tokenEndpoint) {
       throw new Error("RAGFlow apiKey is not configured.");
     }
   }
