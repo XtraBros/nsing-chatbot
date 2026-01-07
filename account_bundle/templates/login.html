@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Sign in to NSing</title>
+    <title>Sign in to Innobridge</title>
     <link rel="stylesheet" href="{{ url_for('auth.static', filename='css/auth.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,12 +12,14 @@
 <main class="auth-shell">
     <section class="auth-card">
         <header class="auth-header">
-            <div class="auth-logo">
-                <img src="{{ url_for('auth.static', filename='images/nsing-logo.png') }}" alt="NSing logo">
-            </div>
             <div>
-                <h1>Welcome back</h1>
-                <p>Sign in to keep your chat history synced across the NSing platform.</p>
+                <div class="auth-title">
+                    <h1>Welcome back to</h1>
+                    <span class="auth-logo auth-logo--hero">
+                        <img src="{{ url_for('auth.static', filename='images/innbridge-logo3.png') }}" alt="Innobridge logo">
+                    </span>
+                </div>
+                <p>Sign in to access Innobridge products and keep your work synced.</p>
             </div>
         </header>
 
@@ -64,7 +66,7 @@
 
             <button type="submit" class="auth-submit">Continue</button>
             <p class="auth-switch">
-                New to NSing?
+                New to Innobridge?
                 <a href="{{ url_for('auth.register', popup=request.args.get('popup'), next=request.args.get('next')) }}">Create an account</a>
             </p>
         </form>
